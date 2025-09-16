@@ -116,3 +116,13 @@ SIMPLE_JWT = {
 
 # ⚡ CORS (para React en Vercel)
 CORS_ALLOW_ALL_ORIGINS = True
+
+
+# CSRF y CORS (para que el admin acepte el dominio de Railway)
+CSRF_TRUSTED_ORIGINS = [
+    "https://condominio-production.up.railway.app"
+]
+
+CORS_ALLOWED_ORIGINS = [
+    "https://condominio-production.up.railway.app"
+]
