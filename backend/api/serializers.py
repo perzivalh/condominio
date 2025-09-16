@@ -18,7 +18,7 @@ class UsuarioSerializer(serializers.ModelSerializer):
     # entrada
     username = serializers.CharField(write_only=True)
     password = serializers.CharField(write_only=True)
-    email = serializers.EmailField(required=False)  # 👈 ahora es lectura/escritura
+    email = serializers.EmailField(required=False)  
     rol_id = serializers.PrimaryKeyRelatedField(
         queryset=Rol.objects.all(), source="rol", write_only=True
     )
@@ -58,7 +58,9 @@ class UsuarioSerializer(serializers.ModelSerializer):
 
         # email según tipo de rol
         if residente:
-            email = residente.correo
+            email = residente.correo  # si hay residente, usar su correo
+
+        # si no hay residente, debe venir manual
         if not email:
             raise serializers.ValidationError({"email": "Debe ingresar un correo válido"})
 
@@ -131,6 +133,7 @@ class UsuarioSerializer(serializers.ModelSerializer):
         if obj.user and obj.user.email:
             return obj.user.email
         return None
+
 
 # --- Vivienda ---
 class ViviendaSerializer(serializers.ModelSerializer):
