@@ -24,8 +24,9 @@ class RolViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action == "list":   # 👈 GET roles sin token
-            return [permissions.AllowAny()]
-        return [permissions.IsAuthenticated()]
+            return [AllowAny()]     # 👈 usar lo que importaste
+        return [IsAuthenticated()]
+
 
 class UsuarioViewSet(viewsets.ModelViewSet):
     queryset = Usuario.objects.all()
