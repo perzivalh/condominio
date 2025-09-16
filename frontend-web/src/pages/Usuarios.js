@@ -32,6 +32,9 @@ function Usuarios() {
   };
 
   useEffect(() => {
+    const token = localStorage.getItem("access");
+    if (!token) return; // si no hay token, no intentes pedir nada
+
     cargarUsuarios();
     cargarRoles();
     cargarResidentes();
