@@ -12,9 +12,8 @@ function Login({ onLogin }) {
       const res = await API.post("token/", { username, password });
       localStorage.setItem("access", res.data.access);
       localStorage.setItem("refresh", res.data.refresh);
-
-
       onLogin();
+      window.location.reload(); 
     } catch (err) {
       setError("Credenciales inválidas");
     }
