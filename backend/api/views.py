@@ -20,7 +20,11 @@ from .serializers import (
 class RolViewSet(viewsets.ModelViewSet):
     queryset = Rol.objects.all()
     serializer_class = RolSerializer
-    permission_classes = [IsAdmin]   # solo ADM puede usar esto
+    
+    def get_permissions(self):
+        if self.action == "list":   # 👈 GET roles sin token
+            return [permissions.AllowAny()]
+        return [permissions.IsAuthenticated()]
 
 class UsuarioViewSet(viewsets.ModelViewSet):
     queryset = Usuario.objects.all()
