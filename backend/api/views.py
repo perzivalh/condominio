@@ -16,11 +16,12 @@ from .serializers import (
     RolSerializer, UsuarioSerializer, ViviendaSerializer,
     ResidenteSerializer, VehiculoSerializer, AvisoSerializer, CondominioSerializer
 )
+from rest_framework.permissions import IsAuthenticated, AllowAny
 
 class RolViewSet(viewsets.ModelViewSet):
     queryset = Rol.objects.all()
     serializer_class = RolSerializer
-    
+
     def get_permissions(self):
         if self.action == "list":   # 👈 GET roles sin token
             return [permissions.AllowAny()]
