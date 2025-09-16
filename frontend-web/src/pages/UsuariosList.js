@@ -18,6 +18,7 @@ export default function UsuariosList() {
   useEffect(() => {
     API.get("usuarios/")
       .then((res) => {
+        console.log("Respuesta usuarios:", res.data);
         const filtro = roleMap[rol];
         setUsuarios(res.data.filter((u) => u.roles.includes(filtro)));
       })
