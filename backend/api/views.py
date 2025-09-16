@@ -6,7 +6,6 @@ from django.utils import timezone
 from django.contrib.auth.hashers import make_password
 import uuid, datetime
 
-from .permissions import IsAdmin
 from .models import Rol, Usuario, Vivienda, Residente, Vehiculo, Aviso, TokenRecuperacion, Condominio
 from .serializers import (
     RolSerializer, UsuarioSerializer, ViviendaSerializer,
@@ -19,66 +18,44 @@ class RolViewSet(viewsets.ModelViewSet):
     serializer_class = RolSerializer
 
     def get_permissions(self):
-        if self.action == "list":       # roles visibles sin token
+        if self.action == "list":       # 👈 listado de roles accesible sin login (para selects en frontend)
             return [AllowAny()]
-        if self.action in ["retrieve"]: # ver detalle de rol requiere login
-            return [IsAuthenticated()]
-        return [IsAdmin()]              # crear, editar, eliminar solo admin
+        return [IsAuthenticated()]      # resto de acciones requieren login
 
 
 # --- USUARIOS ---
 class UsuarioViewSet(viewsets.ModelViewSet):
     queryset = Usuario.objects.all()
     serializer_class = UsuarioSerializer
-
-    def get_permissions(self):
-        if self.action in ["list", "retrieve"]:
-            return [IsAuthenticated()]   # cualquiera logueado puede ver
-        return [IsAdmin()]               # admin gestiona usuarios
+    permission_classes = [IsAuthenticated]
 
 
 # --- VIVIENDAS ---
 class ViviendaViewSet(viewsets.ModelViewSet):
     queryset = Vivienda.objects.all()
     serializer_class = ViviendaSerializer
-
-    def get_permissions(self):
-        if self.action in ["list", "retrieve"]:
-            return [IsAuthenticated()]
-        return [IsAdmin()]
+    permission_classes = [IsAuthenticated]
 
 
 # --- RESIDENTES ---
 class ResidenteViewSet(viewsets.ModelViewSet):
     queryset = Residente.objects.all()
     serializer_class = ResidenteSerializer
-
-    def get_permissions(self):
-        if self.action in ["list", "retrieve"]:
-            return [IsAuthenticated()]
-        return [IsAdmin()]
+    permission_classes = [IsAuthenticated]
 
 
 # --- VEHICULOS ---
 class VehiculoViewSet(viewsets.ModelViewSet):
     queryset = Vehiculo.objects.all()
     serializer_class = VehiculoSerializer
-
-    def get_permissions(self):
-        if self.action in ["list", "retrieve"]:
-            return [IsAuthenticated()]
-        return [IsAdmin()]
+    permission_classes = [IsAuthenticated]
 
 
 # --- AVISOS ---
 class AvisoViewSet(viewsets.ModelViewSet):
     queryset = Aviso.objects.all()
     serializer_class = AvisoSerializer
-
-    def get_permissions(self):
-        if self.action in ["list", "retrieve"]:
-            return [IsAuthenticated()]   # cualquiera logueado puede leer
-        return [IsAdmin()]               # admin crea/gestiona
+    permission_classes = [IsAuthenticated]
 
     def perform_create(self, serializer):
         from .models import Usuario
@@ -90,11 +67,7 @@ class AvisoViewSet(viewsets.ModelViewSet):
 class CondominioViewSet(viewsets.ModelViewSet):
     queryset = Condominio.objects.all()
     serializer_class = CondominioSerializer
-
-    def get_permissions(self):
-        if self.action in ["list", "retrieve"]:
-            return [IsAuthenticated()]
-        return [IsAdmin()]
+    permission_classes = [IsAuthenticated]
 
 
 # --- RECUPERAR PASSWORD ---
@@ -106,7 +79,7 @@ def recuperar_password(request):
         return Response({"error": "Debe ingresar un correo"}, status=status.HTTP_400_BAD_REQUEST)
 
     try:
-        usuario = Usuario.objects.get(user__email=correo)  # busca en auth_user.email
+        usuario = Usuario.objects.get(user__email=correo)
 
         token = str(uuid.uuid4())[:8]
         expiracion = timezone.now() + datetime.timedelta(minutes=15)
