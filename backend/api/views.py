@@ -58,9 +58,14 @@ class AvisoViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def perform_create(self, serializer):
-        from .models import Usuario
-        usuario = Usuario.objects.get(user=self.request.user)
+    # Buscar el perfil Usuario vinculado al auth_user que está logueado
+        try:
+            usuario = Usuario.objects.get(user=self.request.user)
+        except Usuario.DoesNotExist:
+            raise ValueError("No existe perfil de Usuario vinculado al auth_user actual")
+
         serializer.save(autor_usuario=usuario)
+
 
 
 # --- CONDOMINIOS ---
