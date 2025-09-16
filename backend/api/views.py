@@ -1,74 +1,103 @@
 from rest_framework import viewsets, status
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.decorators import api_view
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from django.utils import timezone
 from django.contrib.auth.hashers import make_password
 import uuid, datetime
-from rest_framework_simplejwt.views import TokenObtainPairView
-from rest_framework.permissions import AllowAny
-from rest_framework.decorators import api_view, permission_classes
 
-
-from .permissions import IsAdmin, IsResidente
+from .permissions import IsAdmin
 from .models import Rol, Usuario, Vivienda, Residente, Vehiculo, Aviso, TokenRecuperacion, Condominio
 from .serializers import (
     RolSerializer, UsuarioSerializer, ViviendaSerializer,
     ResidenteSerializer, VehiculoSerializer, AvisoSerializer, CondominioSerializer
 )
-from rest_framework.permissions import IsAuthenticated, AllowAny
 
+# --- ROLES ---
 class RolViewSet(viewsets.ModelViewSet):
     queryset = Rol.objects.all()
     serializer_class = RolSerializer
 
     def get_permissions(self):
-        if self.action == "list":   # 👈 GET roles sin token
-            return [AllowAny()]     # 👈 usar lo que importaste
-        return [IsAuthenticated()]
+        if self.action == "list":       # roles visibles sin token
+            return [AllowAny()]
+        if self.action in ["retrieve"]: # ver detalle de rol requiere login
+            return [IsAuthenticated()]
+        return [IsAdmin()]              # crear, editar, eliminar solo admin
 
 
+# --- USUARIOS ---
 class UsuarioViewSet(viewsets.ModelViewSet):
     queryset = Usuario.objects.all()
     serializer_class = UsuarioSerializer
-    permission_classes = [IsAdmin]   # solo ADM
 
+    def get_permissions(self):
+        if self.action in ["list", "retrieve"]:
+            return [IsAuthenticated()]   # cualquiera logueado puede ver
+        return [IsAdmin()]               # admin gestiona usuarios
+
+
+# --- VIVIENDAS ---
 class ViviendaViewSet(viewsets.ModelViewSet):
     queryset = Vivienda.objects.all()
     serializer_class = ViviendaSerializer
-    permission_classes = [IsAdmin]   # solo ADM
 
+    def get_permissions(self):
+        if self.action in ["list", "retrieve"]:
+            return [IsAuthenticated()]
+        return [IsAdmin()]
+
+
+# --- RESIDENTES ---
 class ResidenteViewSet(viewsets.ModelViewSet):
     queryset = Residente.objects.all()
     serializer_class = ResidenteSerializer
-    permission_classes = [IsAdmin]   # solo ADM
 
+    def get_permissions(self):
+        if self.action in ["list", "retrieve"]:
+            return [IsAuthenticated()]
+        return [IsAdmin()]
+
+
+# --- VEHICULOS ---
 class VehiculoViewSet(viewsets.ModelViewSet):
     queryset = Vehiculo.objects.all()
     serializer_class = VehiculoSerializer
-    permission_classes = [IsAdmin]   # solo ADM
 
+    def get_permissions(self):
+        if self.action in ["list", "retrieve"]:
+            return [IsAuthenticated()]
+        return [IsAdmin()]
+
+
+# --- AVISOS ---
 class AvisoViewSet(viewsets.ModelViewSet):
     queryset = Aviso.objects.all()
     serializer_class = AvisoSerializer
-    
+
     def get_permissions(self):
-        if self.action in ['list', 'retrieve']:
+        if self.action in ["list", "retrieve"]:
             return [IsAuthenticated()]   # cualquiera logueado puede leer
-        return [IsAdmin()] # admin crea y gestiona
+        return [IsAdmin()]               # admin crea/gestiona
 
     def perform_create(self, serializer):
         from .models import Usuario
         usuario = Usuario.objects.get(user=self.request.user)
         serializer.save(autor_usuario=usuario)
 
+
+# --- CONDOMINIOS ---
 class CondominioViewSet(viewsets.ModelViewSet):
     queryset = Condominio.objects.all()
     serializer_class = CondominioSerializer
-    permission_classes = [IsAdmin]
+
+    def get_permissions(self):
+        if self.action in ["list", "retrieve"]:
+            return [IsAuthenticated()]
+        return [IsAdmin()]
 
 
-# 1) Generar token de recuperación
+# --- RECUPERAR PASSWORD ---
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def recuperar_password(request):
@@ -77,10 +106,9 @@ def recuperar_password(request):
         return Response({"error": "Debe ingresar un correo"}, status=status.HTTP_400_BAD_REQUEST)
 
     try:
-        usuario = Usuario.objects.get(user__email=correo)  # 👈 buscar en auth_user.email
+        usuario = Usuario.objects.get(user__email=correo)  # busca en auth_user.email
 
-        # Generar token único
-        token = str(uuid.uuid4())[:8]  # ejemplo: "A1B2C3D4"
+        token = str(uuid.uuid4())[:8]
         expiracion = timezone.now() + datetime.timedelta(minutes=15)
 
         TokenRecuperacion.objects.create(
@@ -99,7 +127,7 @@ def recuperar_password(request):
         return Response({"error": "Usuario no encontrado"}, status=status.HTTP_404_NOT_FOUND)
 
 
-# 2) Resetear contraseña con token
+# --- RESET PASSWORD ---
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def reset_password(request):
@@ -122,11 +150,9 @@ def reset_password(request):
         if token_obj.expiracion < timezone.now():
             return Response({"error": "Token expirado"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Guardar contraseña con hash
         usuario.password_hash = make_password(nueva_pass)
         usuario.save()
 
-        # Marcar token como usado
         token_obj.usado = True
         token_obj.save()
 
@@ -134,4 +160,3 @@ def reset_password(request):
 
     except Usuario.DoesNotExist:
         return Response({"error": "Usuario no encontrado"}, status=status.HTTP_404_NOT_FOUND)
-        
