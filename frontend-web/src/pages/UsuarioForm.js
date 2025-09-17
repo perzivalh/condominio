@@ -74,7 +74,7 @@ export default function UsuarioForm() {
     const payload = {
       username: formData.username,
       password: formData.password,
-      rol_id: formData.rol_id,
+      rol_id: String(formData.rol_id), 
       estado: 1,
     };
 
