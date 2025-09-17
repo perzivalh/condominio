@@ -53,6 +53,18 @@ class ResidenteViewSet(viewsets.ModelViewSet):
     serializer_class = ResidenteSerializer
     permission_classes = [IsAuthenticated]
 
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        solo_disponibles = self.request.query_params.get("solo_disponibles")
+
+        if solo_disponibles is None:
+            return queryset
+
+        if solo_disponibles.lower() in ("1", "true", "t", "yes", "y"):
+            return queryset.filter(usuario__isnull=True)
+
+        return queryset
+
 
 # --- VEHICULOS ---
 class VehiculoViewSet(viewsets.ModelViewSet):
