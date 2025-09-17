@@ -1,7 +1,14 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import API from "../api/axiosConfig";
-import { Button, Table, TableHead, TableBody, TableRow, TableCell } from "@mui/material";
+import {
+  Button,
+  Table,
+  TableHead,
+  TableBody,
+  TableRow,
+  TableCell,
+} from "@mui/material";
 
 const roleMap = {
   adm: "ADM",
@@ -20,7 +27,13 @@ export default function UsuariosList() {
       .then((res) => {
         console.log("Respuesta usuarios:", res.data);
         const filtro = roleMap[rol];
-        setUsuarios(res.data.filter((u) => u.roles.includes(filtro)));
+        const arr = Array.isArray(res.data) ? res.data : [];
+        const conRoles = arr.some(
+          (u) => Array.isArray(u.roles) && u.roles.length
+        );
+        setUsuarios(
+          conRoles ? arr.filter((u) => u.roles.includes(filtro)) : arr
+        );
       })
       .catch((err) => console.error(err));
   }, [rol]);
@@ -51,8 +64,8 @@ export default function UsuariosList() {
           {usuarios.map((u) => (
             <TableRow key={u.id}>
               <TableCell>{u.id}</TableCell>
-              <TableCell>{u.username}</TableCell>
-              <TableCell>{u.email}</TableCell>
+              <TableCell>{u.username_out || "(sin username)"}</TableCell>
+              <TableCell>{u.email || "—"}</TableCell>
               {rol === "res" && (
                 <TableCell>
                   {u.residente
@@ -64,7 +77,9 @@ export default function UsuariosList() {
                 <Button
                   size="small"
                   variant="outlined"
-                  onClick={() => navigate(`/dashboard/usuarios/${rol}/editar/${u.id}`)}
+                  onClick={() =>
+                    navigate(`/dashboard/usuarios/${rol}/editar/${u.id}`)
+                  }
                 >
                   Editar
                 </Button>

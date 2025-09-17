@@ -15,10 +15,10 @@ from django.contrib.auth.models import User
 from .models import Usuario, UsuarioRol, Rol, Residente
 
 class UsuarioSerializer(serializers.ModelSerializer):
-    # entrada
-    username = serializers.CharField(write_only=True)
-    password = serializers.CharField(write_only=True)
-    email = serializers.EmailField(required=False)  
+    # ---- ENTRADA (write-only) ----
+    username = serializers.CharField(write_only=True, required=True)
+    password = serializers.CharField(write_only=True, required=True)
+    email_in = serializers.EmailField(write_only=True, required=False)  # <- renombrado
     rol_id = serializers.PrimaryKeyRelatedField(
         queryset=Rol.objects.all(), source="rol", write_only=True
     )
@@ -29,23 +29,24 @@ class UsuarioSerializer(serializers.ModelSerializer):
         required=False
     )
 
-    # salida
-    roles = serializers.SerializerMethodField()
-    residente = serializers.SerializerMethodField()
-    email = serializers.SerializerMethodField()
+    # ---- SALIDA (read-only) ----
+    roles = serializers.SerializerMethodField(read_only=True)
+    residente = serializers.SerializerMethodField(read_only=True)
+    email = serializers.SerializerMethodField(read_only=True)
+    username_out = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = Usuario
         fields = [
             "id",
-            "username", "password", "email",
             "estado",
             "created_at", "updated_at",
-            "roles",
-            "rol_id",
-            "residente_id",
-            "residente",
-            "email",
+
+            # entrada
+            "username", "password", "email_in", "rol_id", "residente_id",
+
+            # salida
+            "username_out", "email", "roles", "residente",
         ]
 
     # ---------- CREATE ----------
@@ -54,26 +55,17 @@ class UsuarioSerializer(serializers.ModelSerializer):
         residente = validated_data.pop("residente", None)
         username = validated_data.pop("username")
         password = validated_data.pop("password")
-        email = validated_data.pop("email", None)
+        email = validated_data.pop("email_in", None)
 
-        # email según tipo de rol
         if residente:
-            email = residente.correo  # si hay residente, usar su correo
-
-        # si no hay residente, debe venir manual
+            email = residente.correo
         if not email:
             raise serializers.ValidationError({"email": "Debe ingresar un correo válido"})
 
-        # 1) auth_user
         user = User.objects.create_user(username=username, password=password, email=email)
-
-        # 2) perfil Usuario
         usuario = Usuario.objects.create(user=user, **validated_data)
-
-        # 3) rol
         UsuarioRol.objects.create(usuario=usuario, rol=rol, estado=1)
 
-        # 4) vincular residente
         if residente:
             residente.usuario = usuario
             residente.save()
@@ -86,7 +78,7 @@ class UsuarioSerializer(serializers.ModelSerializer):
         residente = validated_data.pop("residente", None)
         username = validated_data.pop("username", None)
         password = validated_data.pop("password", None)
-        email = validated_data.pop("email", None)
+        email = validated_data.pop("email_in", None)
 
         user = instance.user
         if username:
@@ -106,11 +98,9 @@ class UsuarioSerializer(serializers.ModelSerializer):
                 usuario=usuario,
                 defaults={"rol": rol, "estado": 1}
             )
-
         if residente:
             residente.usuario = usuario
             residente.save()
-
         return usuario
 
     # ---------- CAMPOS EXTRA ----------
@@ -128,11 +118,13 @@ class UsuarioSerializer(serializers.ModelSerializer):
                 "ci": obj.residente.ci,
             }
         return None
-        
+
     def get_email(self, obj):
-        if obj.user and obj.user.email:
-            return obj.user.email
-        return None
+        return obj.user.email if getattr(obj, "user", None) else None
+
+    def get_username_out(self, obj):
+        return obj.user.username if getattr(obj, "user", None) else None
+
 
 
 # --- Vivienda ---

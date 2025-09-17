@@ -3,11 +3,11 @@ import { useNavigate, useParams } from "react-router-dom";
 import API from "../api/axiosConfig";
 import { Button, TextField, MenuItem } from "@mui/material";
 
-const roleMap = {
-  adm: { id: 1, name: "ADM" },
-  man: { id: 2, name: "MAN" },
-  gua: { id: 3, name: "GUA" },
-  res: { id: 4, name: "RES" },
+const roleNameMap = {
+  adm: "ADM",
+  man: "MAN",
+  gua: "GUA",
+  res: "RES",
 };
 
 export default function UsuarioForm() {
@@ -17,12 +17,27 @@ export default function UsuarioForm() {
     username: "",
     password: "",
     email: "",
-    rol_id: roleMap[rol]?.id || null,
+    rol_id: null,
     residente_id: null,
   });
+
   const [residentes, setResidentes] = useState([]);
 
-  // Cargar residentes solo si es RES
+  // cargar roles para mapear UUID
+  useEffect(() => {
+    API.get("roles/")
+      .then((res) => {
+
+        const roleName = roleNameMap[rol];
+        const r = res.data.find((x) => x.nombre === roleName);
+        if (r) {
+          setFormData((fd) => ({ ...fd, rol_id: r.id }));
+        }
+      })
+      .catch((err) => console.error(err));
+  }, [rol]);
+
+  // cargar residentes solo si es RES
   useEffect(() => {
     if (rol === "res") {
       API.get("residentes/")
@@ -31,22 +46,23 @@ export default function UsuarioForm() {
     }
   }, [rol]);
 
-  // Si estamos editando
+  // si estamos editando
   useEffect(() => {
     if (id) {
       API.get(`usuarios/${id}/`)
         .then((res) => {
           setFormData({
-            username: res.data.username || "",
+            username: res.data.username_out || "",
             password: "",
             email: res.data.email || "",
-            rol_id: roleMap[rol]?.id || null,
+            rol_id: formData.rol_id, // ya seteado en useEffect de roles
             residente_id: res.data.residente?.id || null,
           });
         })
         .catch((err) => console.error(err));
     }
-  }, [id, rol]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -55,23 +71,44 @@ export default function UsuarioForm() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    const payload = {
+      username: formData.username,
+      password: formData.password,
+      rol_id: formData.rol_id,
+      estado: 1,
+    };
+
+    if (rol === "res") {
+      payload.residente_id = formData.residente_id;
+    } else {
+      payload.email_in = formData.email;
+    }
+
     try {
       if (id) {
-        await API.put(`usuarios/${id}/`, formData);
+        await API.put(`usuarios/${id}/`, payload);
       } else {
-        await API.post("usuarios/", formData);
+        await API.post("usuarios/", payload);
       }
       navigate(`/dashboard/usuarios/${rol}`);
     } catch (error) {
-      console.error(error);
+      console.error(error.response?.data || error);
       alert("Error al guardar usuario");
     }
   };
 
   return (
     <div style={{ padding: 20 }}>
-      <h2>{id ? "Editar" : "Crear"} Usuario {roleMap[rol]?.name}</h2>
-      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "1rem", maxWidth: 400 }}>
+      <h2>{id ? "Editar" : "Crear"} Usuario {roleNameMap[rol]}</h2>
+      <form
+        onSubmit={handleSubmit}
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: "1rem",
+          maxWidth: 400,
+        }}
+      >
         <TextField
           label="Username"
           name="username"
