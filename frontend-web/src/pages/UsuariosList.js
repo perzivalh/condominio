@@ -22,7 +22,7 @@ export default function UsuariosList() {
   const navigate = useNavigate();
   const [usuarios, setUsuarios] = useState([]);
 
-  useEffect(() => {
+  const cargarUsuarios = () => {
     API.get("usuarios/")
       .then((res) => {
         console.log("Respuesta usuarios:", res.data);
@@ -36,7 +36,23 @@ export default function UsuariosList() {
         );
       })
       .catch((err) => console.error(err));
+  };
+
+  useEffect(() => {
+    cargarUsuarios();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rol]);
+
+  const eliminarUsuario = async (id) => {
+    if (!window.confirm("¿Seguro que deseas eliminar este usuario?")) return;
+    try {
+      await API.delete(`usuarios/${id}/`);
+      cargarUsuarios();
+    } catch (error) {
+      console.error(error.response?.data || error);
+      alert("Error al eliminar usuario");
+    }
+  };
 
   return (
     <div style={{ padding: 20 }}>
@@ -77,11 +93,10 @@ export default function UsuariosList() {
                 <Button
                   size="small"
                   variant="outlined"
-                  onClick={() =>
-                    navigate(`/dashboard/usuarios/${rol}/editar/${u.id}`)
-                  }
+                  color="error"
+                  onClick={() => eliminarUsuario(u.id)}
                 >
-                  Editar
+                  Eliminar
                 </Button>
               </TableCell>
             </TableRow>

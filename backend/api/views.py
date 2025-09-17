@@ -5,6 +5,8 @@ from rest_framework.response import Response
 from django.utils import timezone
 from django.contrib.auth.hashers import make_password
 import uuid, datetime
+from django.contrib.auth.models import User
+
 
 from .models import Rol, Usuario, Vivienda, Residente, Vehiculo, Aviso, TokenRecuperacion, Condominio
 from .serializers import (
@@ -28,6 +30,14 @@ class UsuarioViewSet(viewsets.ModelViewSet):
     queryset = Usuario.objects.all()
     serializer_class = UsuarioSerializer
     permission_classes = [IsAuthenticated]
+
+    def perform_destroy(self, instance):
+        auth_user = instance.user
+        super().perform_destroy(instance)
+        if auth_user:
+            User.objects.filter(pk=auth_user.pk).delete()
+
+
 
 
 # --- VIVIENDAS ---
