@@ -28,15 +28,17 @@ export default function UsuarioForm() {
   useEffect(() => {
     API.get("roles/")
       .then((res) => {
+        console.log("Roles disponibles desde backend:", res.data); // 👈 DEBUG
         const roleName = roleNameMap[rol]; // ej: "ADM"
-        const r = res.data.find((x) => x.nombre === roleName);
+        const r = res.data.find((x) => x.nombre?.trim() === roleName);
+        console.log("Buscando rol:", roleName, "Encontrado:", r); // 👈 DEBUG
         if (r) {
           setFormData((fd) => ({ ...fd, rol_id: r.id }));
         }
         setLoadingRol(false);
       })
       .catch((err) => {
-        console.error(err);
+        console.error("Error cargando roles:", err);
         setLoadingRol(false);
       });
   }, [rol]);
@@ -46,7 +48,7 @@ export default function UsuarioForm() {
     if (rol === "res") {
       API.get("residentes/")
         .then((res) => setResidentes(res.data))
-        .catch((err) => console.error(err));
+        .catch((err) => console.error("Error cargando residentes:", err));
     }
   }, [rol]);
 
@@ -63,7 +65,7 @@ export default function UsuarioForm() {
             residente_id: res.data.residente?.id || null,
           });
         })
-        .catch((err) => console.error(err));
+        .catch((err) => console.error("Error cargando usuario:", err));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
@@ -101,7 +103,7 @@ export default function UsuarioForm() {
       }
       navigate(`/dashboard/usuarios/${rol}`);
     } catch (error) {
-      console.error(error.response?.data || error);
+      console.error("Error al guardar usuario:", error.response?.data || error);
       alert("Error al guardar usuario");
     }
   };
