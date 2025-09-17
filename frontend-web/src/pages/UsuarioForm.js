@@ -51,6 +51,7 @@ export default function UsuarioForm() {
     if (id) {
       API.get(`usuarios/${id}/`)
         .then((res) => {
+            console.log("Roles disponibles:", res.data);
           setFormData({
             username: res.data.username_out || "",
             password: "",
@@ -61,7 +62,7 @@ export default function UsuarioForm() {
         })
         .catch((err) => console.error(err));
     }
-    console.log("Roles disponibles:", res.data);
+    
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
