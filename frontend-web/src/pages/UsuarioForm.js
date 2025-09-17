@@ -22,6 +22,7 @@ export default function UsuarioForm() {
   });
 
   const [residentes, setResidentes] = useState([]);
+  const [residenteSeleccionado, setResidenteSeleccionado] = useState(null);
 
   // cargar roles para mapear UUID
   useEffect(() => {
@@ -39,26 +40,49 @@ export default function UsuarioForm() {
 
   // cargar residentes solo si es RES
   useEffect(() => {
-    if (rol === "res") {
-      API.get("residentes/")
-        .then((res) => setResidentes(res.data))
-        .catch((err) => console.error(err));
+    if (rol !== "res") {
+      setResidenteSeleccionado(null);
     }
   }, [rol]);
+
+  useEffect(() => {
+    if (rol === "res") {
+      API.get("residentes/", {
+        params: { solo_disponibles: 1 },
+      })
+        .then((res) => {
+          let disponibles = res.data;
+
+          if (
+            residenteSeleccionado &&
+            !disponibles.some((r) => r.id === residenteSeleccionado.id)
+          ) {
+            disponibles = [...disponibles, residenteSeleccionado];
+          }
+
+          setResidentes(disponibles);
+        })
+        .catch((err) => console.error(err));
+    }
+  }, [rol, residenteSeleccionado]);
 
   // si estamos editando
   useEffect(() => {
     if (id) {
       API.get(`usuarios/${id}/`)
         .then((res) => {
-            console.log("Roles disponibles:", res.data);
-          setFormData({
+          console.log("Roles disponibles:", res.data);
+          setFormData((prev) => ({
+            ...prev,
             username: res.data.username_out || "",
             password: "",
             email: res.data.email || "",
-            rol_id: formData.rol_id, // ya seteado en useEffect de roles
             residente_id: res.data.residente?.id || null,
-          });
+          }));
+
+          if (rol === "res") {
+            setResidenteSeleccionado(res.data.residente || null);
+          }
         })
         .catch((err) => console.error(err));
     }
@@ -77,11 +101,15 @@ export default function UsuarioForm() {
     const payload = {
       username: formData.username,
       password: formData.password,
-      rol_id: String(formData.rol_id), 
+      rol_id: String(formData.rol_id),
       estado: 1,
     };
 
     if (rol === "res") {
+      if (!formData.residente_id) {
+        alert("No hay residentes disponibles para asignar");
+        return;
+      }
       payload.residente_id = formData.residente_id;
     } else {
       payload.email_in = formData.email;
@@ -145,6 +173,12 @@ export default function UsuarioForm() {
             value={formData.residente_id || ""}
             onChange={handleChange}
             required
+            helperText={
+              residentes.length === 0
+                ? "No hay residentes disponibles sin usuario asignado"
+                : ""
+            }
+            disabled={residentes.length === 0}
           >
             {residentes.map((r) => (
               <MenuItem key={r.id} value={r.id}>
