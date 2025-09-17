@@ -61,6 +61,8 @@ export default function UsuarioForm() {
         })
         .catch((err) => console.error(err));
     }
+    console.log("Roles disponibles:", res.data);
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
