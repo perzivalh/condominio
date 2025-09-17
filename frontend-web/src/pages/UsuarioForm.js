@@ -22,19 +22,23 @@ export default function UsuarioForm() {
   });
 
   const [residentes, setResidentes] = useState([]);
+  const [loadingRol, setLoadingRol] = useState(true);
 
   // cargar roles para mapear UUID
   useEffect(() => {
     API.get("roles/")
       .then((res) => {
-
-        const roleName = roleNameMap[rol];
+        const roleName = roleNameMap[rol]; // ej: "ADM"
         const r = res.data.find((x) => x.nombre === roleName);
         if (r) {
           setFormData((fd) => ({ ...fd, rol_id: r.id }));
         }
+        setLoadingRol(false);
       })
-      .catch((err) => console.error(err));
+      .catch((err) => {
+        console.error(err);
+        setLoadingRol(false);
+      });
   }, [rol]);
 
   // cargar residentes solo si es RES
@@ -51,7 +55,6 @@ export default function UsuarioForm() {
     if (id) {
       API.get(`usuarios/${id}/`)
         .then((res) => {
-            console.log("Roles disponibles:", res.data);
           setFormData({
             username: res.data.username_out || "",
             password: "",
@@ -62,8 +65,6 @@ export default function UsuarioForm() {
         })
         .catch((err) => console.error(err));
     }
-    
-
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
@@ -74,10 +75,15 @@ export default function UsuarioForm() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    if (!formData.rol_id) {
+      alert("El rol todavía no se cargó. Intenta de nuevo.");
+      return;
+    }
+
     const payload = {
       username: formData.username,
       password: formData.password,
-      rol_id: String(formData.rol_id), 
+      rol_id: formData.rol_id, // 👈 ya no String()
       estado: 1,
     };
 
@@ -99,6 +105,10 @@ export default function UsuarioForm() {
       alert("Error al guardar usuario");
     }
   };
+
+  if (loadingRol) {
+    return <p>Cargando rol...</p>;
+  }
 
   return (
     <div style={{ padding: 20 }}>
