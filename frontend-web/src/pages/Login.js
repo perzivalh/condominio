@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";  // 👈 para redirigir
+import { useNavigate } from "react-router-dom";
 import API from "../api/axiosConfig";
 
 function Login({ onLogin }) {
@@ -10,21 +10,24 @@ function Login({ onLogin }) {
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    setError("");
     try {
-      const res = await API.post("token/", { username, password });
+      const tokenResponse = await API.post("token/", { username, password });
 
-      // 👉 guardamos tokens
-      localStorage.setItem("access", res.data.access);
-      localStorage.setItem("refresh", res.data.refresh);
+      localStorage.setItem("access", tokenResponse.data.access);
+      localStorage.setItem("refresh", tokenResponse.data.refresh);
+
+      const profileResponse = await API.get("perfil/");
 
       if (onLogin) {
-        onLogin(); // si tenés estado global de autenticación
+        onLogin(profileResponse.data);
       }
 
-      // 👉 redirige directo al dashboard (usuarios)
-      navigate("/dashboard/usuarios");
+      navigate("/dashboard");
     } catch (err) {
-      setError("Credenciales inválidas");
+      localStorage.removeItem("access");
+      localStorage.removeItem("refresh");
+      setError("Credenciales invalidas");
     }
   };
 
@@ -41,14 +44,14 @@ function Login({ onLogin }) {
         />
         <input
           type="password"
-          placeholder="Contraseña"
+          placeholder="Contrasena"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
         />
         <button type="submit">Ingresar</button>
         <p>
-          <a href="/forgot-password">¿Olvidaste tu contraseña?</a>
+          <a href="/forgot-password">Olvidaste tu contrasena?</a>
         </p>
       </form>
       {error && <p style={{ color: "red" }}>{error}</p>}

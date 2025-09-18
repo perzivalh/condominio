@@ -88,6 +88,17 @@ class AvisoViewSet(viewsets.ModelViewSet):
 
         serializer.save(autor_usuario=usuario)
 
+# --- PERFIL ---
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def perfil(request):
+    try:
+        usuario = Usuario.objects.get(user=request.user)
+    except Usuario.DoesNotExist:
+        return Response({"detail": "Perfil de usuario no encontrado."}, status=status.HTTP_404_NOT_FOUND)
+
+    serializer = UsuarioSerializer(usuario)
+    return Response(serializer.data)
 
 
 # --- CONDOMINIOS ---
