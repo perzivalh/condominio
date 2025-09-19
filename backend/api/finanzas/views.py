@@ -1,6 +1,9 @@
-﻿from decimal import Decimal
+from datetime import date
+from decimal import Decimal
 
 from django.db.models import Sum
+from django.db.models.functions import TruncMonth, Upper
+from django.utils import timezone
 from django.shortcuts import get_object_or_404
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
@@ -8,6 +11,40 @@ from rest_framework.response import Response
 
 from ..models import Factura, Pago, ResidenteVivienda, Usuario
 from .serializers import FacturaSerializer, PagoSerializer
+
+
+VALID_PAYMENT_STATES = {"APROBADO", "CONFIRMADO", "COMPLETADO", "PAGADO"}
+FACTURA_PAID_STATES = {"PAGADO", "PAGADA", "CANCELADO", "CANCELADA"}
+MONTH_SHORT_LABELS = {
+    1: "ene",
+    2: "feb",
+    3: "mar",
+    4: "abr",
+    5: "may",
+    6: "jun",
+    7: "jul",
+    8: "ago",
+    9: "sep",
+    10: "oct",
+    11: "nov",
+    12: "dic",
+}
+
+
+def _decimal_to_str(value):
+    if value is None:
+        value = Decimal("0")
+    if not isinstance(value, Decimal):
+        value = Decimal(str(value))
+    return f"{value:.2f}"
+
+
+def _pagos_confirmados_queryset():
+    return (
+        Pago.objects.annotate(estado_upper=Upper("estado"))
+        .filter(estado_upper__in=VALID_PAYMENT_STATES)
+        .order_by()
+    )
 
 
 def _obtener_vivienda_actual(usuario_auth):
@@ -28,6 +65,98 @@ def _obtener_vivienda_actual(usuario_auth):
     if not relacion:
         raise ValueError("El residente no tiene una vivienda activa asignada")
     return relacion.vivienda
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def resumen_finanzas_admin(request):
+    today = timezone.localdate()
+    current_period = today.strftime("%Y-%m")
+
+    ingresos_mes_total = (
+        Factura.objects.filter(periodo=current_period).aggregate(total=Sum("monto"))["total"]
+        or Decimal("0")
+    )
+
+    pagos_confirmados = _pagos_confirmados_queryset()
+
+    pagado_mes_total = (
+        pagos_confirmados
+        .filter(fecha_pago__year=today.year, fecha_pago__month=today.month)
+        .aggregate(total=Sum("monto_pagado"))["total"]
+        or Decimal("0")
+    )
+
+    pendiente_mes_total = ingresos_mes_total - pagado_mes_total
+    if pendiente_mes_total < Decimal("0"):
+        pendiente_mes_total = Decimal("0")
+
+    morosidad_total = (
+        Factura.objects.filter(estado__iexact="PENDIENTE", fecha_vencimiento__lt=today)
+        .aggregate(total=Sum("monto"))["total"]
+        or Decimal("0")
+    )
+
+    months_to_return = 7
+    month_keys = []
+    year = today.year
+    month = today.month
+    for _ in range(months_to_return):
+        month_keys.append((year, month))
+        month -= 1
+        if month == 0:
+            month = 12
+            year -= 1
+    month_keys.reverse()
+
+    pagos_por_mes = {
+        (row["month"].date() if hasattr(row["month"], "date") else row["month"]): row["total"]
+        or Decimal("0")
+        for row in (
+            pagos_confirmados
+            .annotate(month=TruncMonth("fecha_pago"))
+            .values("month")
+            .annotate(total=Sum("monto_pagado"))
+        )
+        if row["month"] is not None
+    }
+
+    ingresos_mensuales = []
+    for year, month in month_keys:
+        first_day = date(year, month, 1)
+        total_mes = pagos_por_mes.get(first_day, Decimal("0"))
+        ingresos_mensuales.append(
+            {
+                "periodo": first_day.strftime("%Y-%m"),
+                "label": MONTH_SHORT_LABELS.get(month, first_day.strftime("%b")).lower(),
+                "total": _decimal_to_str(total_mes),
+            }
+        )
+
+    total_facturas = Factura.objects.count()
+    facturas_pagadas = (
+        Factura.objects.annotate(estado_upper=Upper("estado"))
+        .filter(estado_upper__in=FACTURA_PAID_STATES)
+        .count()
+    )
+    porcentaje_pagadas = 0.0
+    if total_facturas:
+        porcentaje_pagadas = round((facturas_pagadas / total_facturas) * 100, 2)
+
+    data = {
+        "ingresos_mes": _decimal_to_str(ingresos_mes_total),
+        "pagado_mes": _decimal_to_str(pagado_mes_total),
+        "pendiente_mes": _decimal_to_str(pendiente_mes_total),
+        "morosidad_total": _decimal_to_str(morosidad_total),
+        "ingresos_mensuales": ingresos_mensuales,
+        "facturas": {
+            "total_emitidas": total_facturas,
+            "total_pagadas": facturas_pagadas,
+            "porcentaje_pagadas": porcentaje_pagadas,
+        },
+    }
+
+    return Response(data)
 
 
 @api_view(["GET"])

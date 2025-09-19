@@ -6,7 +6,12 @@ from .views import (
     VehiculoViewSet, AvisoViewSet, CondominioViewSet,
     recuperar_password, reset_password, perfil
 )
-from .finanzas.views import resumen_finanzas, lista_facturas, detalle_factura
+from .finanzas.views import (
+    resumen_finanzas,
+    lista_facturas,
+    detalle_factura,
+    resumen_finanzas_admin,
+)
 
 router = DefaultRouter()
 router.register(r'roles', RolViewSet)
@@ -23,6 +28,7 @@ urlpatterns = [
     path('reset-password/', reset_password),
     path('perfil/', perfil),
     path('finanzas/resumen/', resumen_finanzas),
+    path('finanzas/admin/resumen/', resumen_finanzas_admin),
     path('finanzas/facturas/', lista_facturas),
     path('finanzas/facturas/<uuid:pk>/', detalle_factura),
 ]

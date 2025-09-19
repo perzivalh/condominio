@@ -1,0 +1,245 @@
+.finanzas-container {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  background: linear-gradient(145deg, #f2f5f9, #d7dce8);
+  padding: 32px;
+  border-radius: 36px;
+  box-shadow: -16px -16px 32px #ffffff, 16px 16px 32px rgba(163, 177, 198, 0.65);
+  color: #1f2937;
+}
+
+.finanzas-header h1 {
+  margin: 0;
+  font-size: 2rem;
+  letter-spacing: 1px;
+}
+
+.finanzas-header p {
+  margin: 4px 0 0;
+  color: #4a5568;
+}
+
+.finanzas-tabs {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.finanzas-tab {
+  border: none;
+  border-radius: 999px;
+  padding: 12px 28px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: #5b6472;
+  background: linear-gradient(145deg, #f7faff, #d5dbe8);
+  box-shadow: -6px -6px 12px #ffffff, 6px 6px 12px rgba(163, 177, 198, 0.6);
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+}
+
+.finanzas-tab:hover,
+.finanzas-tab:focus-visible {
+  color: #1f2937;
+  box-shadow: -4px -4px 10px #ffffff, 4px 4px 10px rgba(163, 177, 198, 0.6);
+  outline: none;
+}
+
+.finanzas-tab.active {
+  color: #1f2937;
+  box-shadow: inset -6px -6px 12px #ffffff, inset 6px 6px 12px rgba(163, 177, 198, 0.6);
+}
+
+.finanzas-content {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.finanzas-loading,
+.finanzas-error,
+.finanzas-placeholder {
+  background: linear-gradient(145deg, #f7faff, #d5dbe8);
+  border-radius: 28px;
+  padding: 48px 32px;
+  text-align: center;
+  box-shadow: -12px -12px 24px #ffffff, 12px 12px 24px rgba(163, 177, 198, 0.5);
+  color: #2d3748;
+}
+
+.finanzas-error {
+  color: #b42318;
+}
+
+.finanzas-retry {
+  margin-top: 18px;
+  border: none;
+  border-radius: 999px;
+  padding: 10px 26px;
+  font-weight: 600;
+  color: #ffffff;
+  background: linear-gradient(145deg, #5ad06b, #47b159);
+  cursor: pointer;
+  box-shadow: -4px -4px 10px rgba(255, 255, 255, 0.6), 4px 4px 12px rgba(91, 160, 110, 0.55);
+}
+
+.finanzas-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 24px;
+}
+
+.finanzas-card {
+  background: linear-gradient(145deg, #f7faff, #d5dbe8);
+  border-radius: 28px;
+  padding: 24px;
+  box-shadow: -12px -12px 24px #ffffff, 12px 12px 24px rgba(163, 177, 198, 0.55);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.finanzas-metric-title {
+  font-size: 0.95rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #5b6472;
+}
+
+.finanzas-amount {
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.finanzas-metric-subtitle {
+  font-size: 0.9rem;
+  color: #6b7280;
+}
+
+.finanzas-bottom {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.finanzas-chart {
+  flex: 1;
+  min-width: 280px;
+}
+
+.finanzas-card-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.finanzas-chart-content {
+  display: flex;
+  align-items: flex-end;
+  gap: 20px;
+  height: 220px;
+  margin-top: 28px;
+  padding: 0 4px;
+}
+
+.finanzas-bar-column {
+  flex: 1;
+  min-width: 44px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.finanzas-bar {
+  width: 42px;
+  border-radius: 20px;
+  background: linear-gradient(180deg, #7ad86c, #49b558);
+  box-shadow: inset -6px -6px 10px rgba(255, 255, 255, 0.8), inset 6px 6px 12px rgba(70, 130, 90, 0.35);
+  transition: height 0.3s ease-in-out;
+}
+
+.finanzas-bar-value {
+  font-size: 0.85rem;
+  color: #4a5568;
+  font-weight: 600;
+}
+
+.finanzas-bar-label {
+  font-size: 0.8rem;
+  color: #4a5568;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.finanzas-progress {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  min-width: 240px;
+}
+
+.finanzas-progress-circle {
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 16px auto;
+  position: relative;
+  box-shadow: -10px -10px 20px rgba(255, 255, 255, 0.6),
+    10px 10px 20px rgba(163, 177, 198, 0.6);
+}
+
+.finanzas-progress-circle::after {
+  content: "";
+  position: absolute;
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #f7faff, #d5dbe8);
+  box-shadow: inset -8px -8px 16px #ffffff, inset 8px 8px 16px rgba(163, 177, 198, 0.55);
+}
+
+.finanzas-progress-value {
+  position: relative;
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.finanzas-progress-details {
+  font-size: 0.95rem;
+  color: #4a5568;
+}
+
+.finanzas-placeholder h3 {
+  margin: 0 0 12px;
+  font-size: 1.4rem;
+}
+
+.finanzas-placeholder p {
+  margin: 0;
+  font-size: 1rem;
+  color: #4a5568;
+}
+
+@media (max-width: 768px) {
+  .finanzas-container {
+    padding: 24px;
+  }
+
+  .finanzas-progress-circle {
+    width: 160px;
+    height: 160px;
+  }
+
+  .finanzas-progress-circle::after {
+    width: 112px;
+    height: 112px;
+  }
+}
