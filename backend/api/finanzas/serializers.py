@@ -1,6 +1,100 @@
 ﻿from rest_framework import serializers
 
-from ..models import Factura, Pago
+from ..models import (
+    ExpensaConfig,
+    Factura,
+    MultaAplicada,
+    MultaConfig,
+    Pago,
+    Vivienda,
+    Condominio,
+)
+
+
+class ExpensaConfigSerializer(serializers.ModelSerializer):
+    condominio_id = serializers.PrimaryKeyRelatedField(
+        source="condominio", queryset=Condominio.objects.all()
+    )
+    condominio_nombre = serializers.CharField(
+        source="condominio.nombre", read_only=True
+    )
+    periodicidad_label = serializers.CharField(
+        source="get_periodicidad_display", read_only=True
+    )
+    estado_label = serializers.CharField(source="get_estado_display", read_only=True)
+
+    class Meta:
+        model = ExpensaConfig
+        fields = [
+            "id",
+            "condominio_id",
+            "condominio_nombre",
+            "bloque",
+            "monto",
+            "periodicidad",
+            "periodicidad_label",
+            "estado",
+            "estado_label",
+            "creado_en",
+            "actualizado_en",
+        ]
+
+
+class MultaConfigSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MultaConfig
+        fields = ["id", "nombre", "descripcion", "monto", "activo", "creado_en", "actualizado_en"]
+
+
+class MultaAplicadaSerializer(serializers.ModelSerializer):
+    vivienda_id = serializers.PrimaryKeyRelatedField(
+        source="vivienda", queryset=Vivienda.objects.all(), write_only=True
+    )
+    multa_config_id = serializers.PrimaryKeyRelatedField(
+        source="multa_config", queryset=MultaConfig.objects.all(), write_only=True
+    )
+    vivienda_codigo = serializers.CharField(
+        source="vivienda.codigo_unidad", read_only=True
+    )
+    vivienda_bloque = serializers.CharField(
+        source="vivienda.bloque", read_only=True
+    )
+    multa_nombre = serializers.CharField(source="multa_config.nombre", read_only=True)
+    multa_descripcion = serializers.CharField(
+        source="multa_config.descripcion", read_only=True
+    )
+    factura_id = serializers.UUIDField(source="factura.id", read_only=True)
+    monto = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
+
+    class Meta:
+        model = MultaAplicada
+        fields = [
+            "id",
+            "vivienda_id",
+            "vivienda_codigo",
+            "vivienda_bloque",
+            "multa_config_id",
+            "multa_nombre",
+            "multa_descripcion",
+            "descripcion",
+            "monto",
+            "fecha_aplicacion",
+            "factura_id",
+            "periodo_facturado",
+        ]
+        read_only_fields = ["fecha_aplicacion", "factura_id", "periodo_facturado"]
+
+    def validate(self, attrs):
+        multa_config = attrs.get("multa_config") or getattr(self.instance, "multa_config", None)
+        if multa_config and not multa_config.activo:
+            raise serializers.ValidationError("El tipo de multa seleccionado está inactivo.")
+        if "monto" not in attrs or attrs.get("monto") is None:
+            if multa_config:
+                attrs["monto"] = multa_config.monto
+        if "descripcion" not in attrs or not attrs.get("descripcion"):
+            if multa_config:
+                attrs["descripcion"] = multa_config.descripcion or multa_config.nombre
+        return attrs
 
 
 class FacturaSerializer(serializers.ModelSerializer):

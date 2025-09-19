@@ -217,6 +217,307 @@
   color: #4a5568;
 }
 
+.finanzas-configuracion {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.finanzas-subtabs {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.finanzas-subtab {
+  border: none;
+  border-radius: 14px;
+  padding: 10px 22px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: #5b6472;
+  background: linear-gradient(145deg, #f5f8ff, #d5dbe8);
+  box-shadow: -6px -6px 12px #ffffff, 6px 6px 12px rgba(163, 177, 198, 0.55);
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+}
+
+.finanzas-subtab.active {
+  color: #1f2937;
+  box-shadow: inset -6px -6px 12px #ffffff, inset 6px 6px 12px rgba(163, 177, 198, 0.55);
+}
+
+.finanzas-config-feedback {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 18px 22px;
+  border-radius: 18px;
+  background: linear-gradient(145deg, #f7faff, #d5dbe8);
+  box-shadow: -8px -8px 16px #ffffff, 8px 8px 16px rgba(163, 177, 198, 0.45);
+}
+
+.finanzas-config-feedback .error {
+  margin: 0;
+  color: #b42318;
+  font-weight: 600;
+}
+
+.finanzas-config-feedback .success {
+  margin: 0;
+  color: #1f6f3d;
+  font-weight: 600;
+}
+
+.finanzas-config-actions {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.finanzas-config-action-group {
+  display: flex;
+  gap: 12px;
+}
+
+.finanzas-button {
+  border: none;
+  border-radius: 999px;
+  padding: 10px 26px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+  box-shadow: -6px -6px 12px rgba(255, 255, 255, 0.8), 6px 6px 12px rgba(163, 177, 198, 0.45);
+}
+
+.finanzas-button:hover,
+.finanzas-button:focus-visible {
+  transform: translateY(-1px);
+  outline: none;
+}
+
+.finanzas-button.primary {
+  color: #ffffff;
+  background: linear-gradient(145deg, #5ad06b, #47b159);
+}
+
+.finanzas-button.accent {
+  color: #ffffff;
+  background: linear-gradient(145deg, #6c7bd8, #4c5bb5);
+}
+
+.finanzas-button.secondary {
+  color: #4a5568;
+  background: linear-gradient(145deg, #f7faff, #d5dbe8);
+}
+
+.finanzas-button.ghost {
+  color: #4a5568;
+  background: linear-gradient(145deg, #f1f4f9, #d8deeb);
+}
+
+.finanzas-button.danger {
+  color: #ffffff;
+  background: linear-gradient(145deg, #f16565, #cc4a4a);
+}
+
+.finanzas-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+  transform: none;
+}
+
+.finanzas-table-wrapper {
+  overflow-x: auto;
+  border-radius: 28px;
+  background: linear-gradient(145deg, #f7faff, #d5dbe8);
+  box-shadow: -12px -12px 24px #ffffff, 12px 12px 24px rgba(163, 177, 198, 0.5);
+}
+
+.finanzas-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 600px;
+}
+
+.finanzas-table th,
+.finanzas-table td {
+  padding: 18px 22px;
+  text-align: left;
+  color: #2d3748;
+}
+
+.finanzas-table thead th {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.85rem;
+  color: #5b6472;
+  border-bottom: 1px solid rgba(163, 177, 198, 0.35);
+}
+
+.finanzas-table tbody tr + tr {
+  border-top: 1px solid rgba(163, 177, 198, 0.25);
+}
+
+.finanzas-table-main {
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.finanzas-table-sub {
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+
+.finanzas-table-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.finanzas-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.finanzas-pill.success {
+  background: rgba(90, 208, 107, 0.12);
+  color: #2f855a;
+}
+
+.finanzas-pill.warning {
+  background: rgba(241, 165, 65, 0.18);
+  color: #a05a1b;
+}
+
+.finanzas-config-loader,
+.finanzas-config-empty {
+  padding: 36px 28px;
+  text-align: center;
+  border-radius: 26px;
+  background: linear-gradient(145deg, #f7faff, #d5dbe8);
+  box-shadow: -12px -12px 24px #ffffff, 12px 12px 24px rgba(163, 177, 198, 0.45);
+  color: #4a5568;
+}
+
+.finanzas-link-button {
+  border: none;
+  background: none;
+  color: #4c5bb5;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.finanzas-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(17, 24, 39, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 1000;
+}
+
+.finanzas-modal {
+  width: min(520px, 100%);
+  background: linear-gradient(145deg, #f7faff, #d5dbe8);
+  border-radius: 28px;
+  box-shadow: -16px -16px 32px #ffffff, 16px 16px 32px rgba(163, 177, 198, 0.55);
+  overflow: hidden;
+}
+
+.finanzas-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 26px;
+  border-bottom: 1px solid rgba(163, 177, 198, 0.25);
+}
+
+.finanzas-modal-header h3 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.finanzas-modal-close {
+  border: none;
+  background: transparent;
+  font-size: 1.6rem;
+  cursor: pointer;
+  color: #4a5568;
+}
+
+.finanzas-modal-content {
+  padding: 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.finanzas-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.finanzas-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: #4a5568;
+  font-weight: 600;
+}
+
+.finanzas-field input,
+.finanzas-field select,
+.finanzas-field textarea {
+  border: none;
+  border-radius: 16px;
+  padding: 12px 16px;
+  font-size: 0.95rem;
+  background: linear-gradient(145deg, #ffffff, #dde3ef);
+  box-shadow: inset -4px -4px 8px #ffffff, inset 4px 4px 8px rgba(163, 177, 198, 0.4);
+  color: #2d3748;
+}
+
+.finanzas-field textarea {
+  resize: vertical;
+}
+
+.finanzas-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.finanzas-modal-text {
+  padding: 8px 4px;
+  color: #2d3748;
+  line-height: 1.5;
+}
+
+.finanzas-form-hint {
+  margin: 0;
+  padding: 12px 16px;
+  border-radius: 16px;
+  background: rgba(76, 91, 181, 0.1);
+  color: #4c5bb5;
+  font-weight: 600;
+}
+
 .finanzas-placeholder h3 {
   margin: 0 0 12px;
   font-size: 1.4rem;

@@ -1,16 +1,35 @@
+from calendar import monthrange
 from datetime import date
 from decimal import Decimal
 
+from django.db import transaction
 from django.db.models import Sum
 from django.db.models.functions import TruncMonth, Upper
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
+from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from ..models import Factura, Pago, ResidenteVivienda, Usuario
-from .serializers import FacturaSerializer, PagoSerializer
+from ..models import (
+    ExpensaConfig,
+    Factura,
+    FacturaDetalle,
+    MultaAplicada,
+    MultaConfig,
+    Pago,
+    ResidenteVivienda,
+    Usuario,
+    Vivienda,
+)
+from .serializers import (
+    ExpensaConfigSerializer,
+    FacturaSerializer,
+    MultaAplicadaSerializer,
+    MultaConfigSerializer,
+    PagoSerializer,
+)
 
 
 VALID_PAYMENT_STATES = {"APROBADO", "CONFIRMADO", "COMPLETADO", "PAGADO"}
@@ -65,6 +84,117 @@ def _obtener_vivienda_actual(usuario_auth):
     if not relacion:
         raise ValueError("El residente no tiene una vivienda activa asignada")
     return relacion.vivienda
+
+
+def _parse_periodo(periodo):
+    if not isinstance(periodo, str) or "-" not in periodo:
+        raise ValueError("El periodo debe tener formato YYYY-MM")
+    year_part, month_part = periodo.split("-", 1)
+    try:
+        year = int(year_part)
+        month = int(month_part)
+        date(year, month, 1)
+    except ValueError as exc:
+        raise ValueError("El periodo debe tener formato YYYY-MM") from exc
+    return year, month
+
+
+def _expensa_config_por_bloque():
+    configuraciones = ExpensaConfig.objects.select_related("condominio")
+    resultado = {}
+    for config in configuraciones:
+        clave = (config.condominio_id, (config.bloque or "").strip().upper())
+        resultado[clave] = config
+    return resultado
+
+
+@transaction.atomic
+def _generar_facturas_para_periodo(periodo):
+    year, month = _parse_periodo(periodo)
+    _, last_day = monthrange(year, month)
+    fecha_vencimiento = date(year, month, last_day)
+
+    expensas_map = _expensa_config_por_bloque()
+    viviendas = Vivienda.objects.select_related("condominio").filter(estado=1)
+
+    resumen = {"creadas": 0, "actualizadas": 0, "sin_cambios": 0}
+
+    for vivienda in viviendas:
+        clave = (vivienda.condominio_id, (vivienda.bloque or "").strip().upper())
+        expensa_config = expensas_map.get(clave)
+        expensa_monto = Decimal("0")
+        expensa_descripcion = None
+        if expensa_config and expensa_config.esta_activa:
+            expensa_monto = Decimal(expensa_config.monto)
+            expensa_descripcion = f"Expensa bloque {expensa_config.bloque}"
+
+        multas_pendientes = list(
+            MultaAplicada.objects.select_related("multa_config")
+            .filter(vivienda=vivienda, factura__isnull=True)
+            .order_by("fecha_aplicacion")
+        )
+        total_multas = sum((Decimal(multa.monto) for multa in multas_pendientes), Decimal("0"))
+
+        total_factura = expensa_monto + total_multas
+        if total_factura <= Decimal("0") and not multas_pendientes:
+            resumen["sin_cambios"] += 1
+            continue
+
+        factura, creada = Factura.objects.get_or_create(
+            vivienda=vivienda,
+            periodo=periodo,
+            tipo="expensa",
+            defaults={
+                "monto": total_factura,
+                "estado": "PENDIENTE",
+                "fecha_vencimiento": fecha_vencimiento,
+            },
+        )
+
+        if not creada and factura.estado.upper() in FACTURA_PAID_STATES:
+            resumen["sin_cambios"] += 1
+            continue
+
+        if not creada:
+            factura.detalles.all().delete()
+
+        detalles_creados = 0
+        if expensa_descripcion and expensa_monto > 0:
+            FacturaDetalle.objects.create(
+                factura=factura,
+                descripcion=expensa_descripcion,
+                tipo=FacturaDetalle.TIPO_EXPENSA,
+                monto=expensa_monto,
+            )
+            detalles_creados += 1
+
+        for multa in multas_pendientes:
+            FacturaDetalle.objects.create(
+                factura=factura,
+                descripcion=multa.descripcion or multa.multa_config.descripcion or multa.multa_config.nombre,
+                tipo=FacturaDetalle.TIPO_MULTA,
+                monto=multa.monto,
+                multa_aplicada=multa,
+            )
+            multa.factura = factura
+            multa.periodo_facturado = periodo
+            multa.save(update_fields=["factura", "periodo_facturado"])
+            detalles_creados += 1
+
+        factura.monto = total_factura
+        if not factura.fecha_vencimiento:
+            factura.fecha_vencimiento = fecha_vencimiento
+        factura.save(update_fields=["monto", "fecha_vencimiento"])
+
+        if creada:
+            resumen["creadas"] += 1
+        else:
+            resumen["actualizadas"] += 1
+
+        if detalles_creados == 0:
+            resumen["sin_cambios"] += 1
+
+    return resumen
 
 
 @api_view(["GET"])
@@ -219,3 +349,115 @@ def detalle_factura(request, pk):
         "pagos": PagoSerializer(pagos, many=True).data,
     }
     return Response(data)
+
+
+@api_view(["GET", "POST"])
+@permission_classes([IsAuthenticated])
+def configuraciones_expensa(request):
+    if request.method == "GET":
+        queryset = ExpensaConfig.objects.select_related("condominio").order_by("bloque")
+        serializer = ExpensaConfigSerializer(queryset, many=True)
+        return Response(serializer.data)
+
+    serializer = ExpensaConfigSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    expensa = serializer.save()
+    return Response(ExpensaConfigSerializer(expensa).data, status=status.HTTP_201_CREATED)
+
+
+@api_view(["PUT", "PATCH", "DELETE"])
+@permission_classes([IsAuthenticated])
+def configuracion_expensa_detalle(request, pk):
+    expensa = get_object_or_404(ExpensaConfig, pk=pk)
+
+    if request.method == "DELETE":
+        expensa.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    partial = request.method == "PATCH"
+    serializer = ExpensaConfigSerializer(expensa, data=request.data, partial=partial)
+    serializer.is_valid(raise_exception=True)
+    expensa = serializer.save()
+    return Response(ExpensaConfigSerializer(expensa).data)
+
+
+@api_view(["GET", "POST"])
+@permission_classes([IsAuthenticated])
+def catalogo_multas(request):
+    if request.method == "GET":
+        queryset = MultaConfig.objects.all().order_by("nombre")
+        serializer = MultaConfigSerializer(queryset, many=True)
+        return Response(serializer.data)
+
+    serializer = MultaConfigSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    multa = serializer.save()
+    return Response(MultaConfigSerializer(multa).data, status=status.HTTP_201_CREATED)
+
+
+@api_view(["PUT", "PATCH", "DELETE"])
+@permission_classes([IsAuthenticated])
+def catalogo_multa_detalle(request, pk):
+    multa_config = get_object_or_404(MultaConfig, pk=pk)
+
+    if request.method == "DELETE":
+        multa_config.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    partial = request.method == "PATCH"
+    serializer = MultaConfigSerializer(multa_config, data=request.data, partial=partial)
+    serializer.is_valid(raise_exception=True)
+    multa_config = serializer.save()
+    return Response(MultaConfigSerializer(multa_config).data)
+
+
+@api_view(["GET", "POST"])
+@permission_classes([IsAuthenticated])
+def multas_aplicadas(request):
+    if request.method == "GET":
+        queryset = (
+            MultaAplicada.objects.select_related("multa_config", "vivienda")
+            .filter(factura__isnull=True)
+            .order_by("-fecha_aplicacion")
+        )
+        serializer = MultaAplicadaSerializer(queryset, many=True)
+        return Response(serializer.data)
+
+    serializer = MultaAplicadaSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    multa = serializer.save()
+    return Response(MultaAplicadaSerializer(multa).data, status=status.HTTP_201_CREATED)
+
+
+@api_view(["DELETE"])
+@permission_classes([IsAuthenticated])
+def multa_aplicada_detalle(request, pk):
+    multa = get_object_or_404(MultaAplicada, pk=pk)
+    if multa.factura_id:
+        return Response(
+            {"detail": "La multa ya fue incluida en una factura y no puede eliminarse."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    multa.delete()
+    return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def generar_facturas_admin(request):
+    periodo = request.data.get("periodo")
+    if not periodo:
+        periodo = timezone.localdate().strftime("%Y-%m")
+
+    try:
+        resumen = _generar_facturas_para_periodo(periodo)
+    except ValueError as exc:
+        return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+    data = {
+        "periodo": periodo,
+        "creadas": resumen.get("creadas", 0),
+        "actualizadas": resumen.get("actualizadas", 0),
+        "sin_cambios": resumen.get("sin_cambios", 0),
+    }
+    return Response(data, status=status.HTTP_200_OK)
