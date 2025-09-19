@@ -3,6 +3,8 @@
 import '../core/app_colors.dart';
 import '../models/resident_profile.dart';
 import '../widgets/neumorphic.dart';
+import '../widgets/resident_bottom_nav.dart';
+import 'finance/finanzas_page.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key, required this.session});
@@ -16,6 +18,24 @@ class DashboardPage extends StatefulWidget {
 class _DashboardPageState extends State<DashboardPage> {
   int _selectedIndex = 1;
 
+  void _handleModuleTap(String module) {
+    if (module == 'Finanzas') {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => FinanzasPage(session: widget.session),
+        ),
+      );
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Módulo "$module" aún no está disponible.'),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final profile = widget.session.profile;
@@ -23,30 +43,25 @@ class _DashboardPageState extends State<DashboardPage> {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _HeaderCard(profile: profile),
-              const SizedBox(height: 24),
-              Expanded(
-                child: _ModuleGrid(
-                  onModuleTap: (module) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Modulo "$module" aun no esta disponible.'),
-                        duration: const Duration(seconds: 2),
-                      ),
-                    );
-                  },
-                ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 28, 24, 0),
+              child: _HeaderRow(profile: profile),
+            ),
+            const SizedBox(height: 24),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: _ModuleGrid(onModuleTap: _handleModuleTap),
               ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 12),
+          ],
         ),
       ),
-      bottomNavigationBar: _BottomNavBar(
+      bottomNavigationBar: ResidentBottomNavBar(
         selectedIndex: _selectedIndex,
         onChanged: (index) {
           setState(() {
@@ -58,59 +73,52 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 }
 
-class _HeaderCard extends StatelessWidget {
-  const _HeaderCard({required this.profile});
+class _HeaderRow extends StatelessWidget {
+  const _HeaderRow({required this.profile});
 
   final ResidentProfile profile;
 
   @override
   Widget build(BuildContext context) {
-    return NeumorphicSurface(
-      borderRadius: BorderRadius.circular(32),
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 26),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      profile.displayCode,
-                      style: const TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.primaryText,
-                        letterSpacing: 0.6,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      profile.fullName.isEmpty ? 'Residente' : profile.fullName,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.secondaryText,
-                      ),
-                    ),
-                  ],
+              Text(
+                profile.displayCode,
+                style: const TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.primaryText,
+                  letterSpacing: 0.6,
                 ),
               ),
-              NeumorphicSurface(
-                borderRadius: BorderRadius.circular(20),
-                padding: const EdgeInsets.all(12),
-                child: const Icon(
-                  Icons.notifications_none_outlined,
-                  color: AppColors.primaryText,
-                  size: 26,
+              const SizedBox(height: 6),
+              Text(
+                profile.fullName.isEmpty ? 'Residente' : profile.fullName,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.secondaryText,
                 ),
               ),
             ],
           ),
-        ],
-      ),
+        ),
+        const SizedBox(width: 16),
+        NeumorphicSurface(
+          borderRadius: BorderRadius.circular(22),
+          padding: const EdgeInsets.all(14),
+          child: const Icon(
+            Icons.notifications_none_outlined,
+            color: AppColors.primaryText,
+            size: 26,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -208,83 +216,3 @@ class _ModuleData {
   final String label;
   final IconData icon;
 }
-
-class _BottomNavBar extends StatelessWidget {
-  const _BottomNavBar({
-    required this.selectedIndex,
-    required this.onChanged,
-  });
-
-  final int selectedIndex;
-  final ValueChanged<int> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
-      child: NeumorphicSurface(
-        borderRadius: BorderRadius.circular(30),
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 32),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            _NavItem(
-              icon: Icons.directions_car_filled_outlined,
-              index: 0,
-              selectedIndex: selectedIndex,
-              onChanged: onChanged,
-            ),
-            _NavItem(
-              icon: Icons.home_outlined,
-              index: 1,
-              selectedIndex: selectedIndex,
-              onChanged: onChanged,
-            ),
-            _NavItem(
-              icon: Icons.person_outline,
-              index: 2,
-              selectedIndex: selectedIndex,
-              onChanged: onChanged,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _NavItem extends StatelessWidget {
-  const _NavItem({
-    required this.icon,
-    required this.index,
-    required this.selectedIndex,
-    required this.onChanged,
-  });
-
-  final IconData icon;
-  final int index;
-  final int selectedIndex;
-  final ValueChanged<int> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final bool isSelected = index == selectedIndex;
-    return GestureDetector(
-      onTap: () => onChanged(index),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: isSelected ? Colors.white.withValues(alpha: 0.7) : Colors.transparent,
-          shape: BoxShape.circle,
-        ),
-        child: Icon(
-          icon,
-          size: 28,
-          color: isSelected ? AppColors.primaryText : AppColors.secondaryText,
-        ),
-      ),
-    );
-  }
-}
-

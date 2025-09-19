@@ -65,35 +65,62 @@ class NeumorphicInset extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.surface,
         borderRadius: borderRadius,
+        color: AppColors.surface,
         boxShadow: const [
           BoxShadow(
             color: AppColors.shadowDark,
-            offset: Offset(6, 6),
-            blurRadius: 14,
-            spreadRadius: 1,
+            offset: Offset(4, 4),
+            blurRadius: 12,
+            spreadRadius: -6,
           ),
           BoxShadow(
             color: AppColors.shadowLight,
-            offset: Offset(-6, -6),
-            blurRadius: 14,
-            spreadRadius: 1,
+            offset: Offset(-4, -4),
+            blurRadius: 12,
+            spreadRadius: -6,
           ),
         ],
       ),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: borderRadius,
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [AppColors.surfaceDark, AppColors.surfaceLight],
-          ),
-        ),
-        child: Padding(
-          padding: padding,
-          child: child,
+      child: ClipRRect(
+        borderRadius: borderRadius,
+        child: Stack(
+          children: [
+            Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    AppColors.surfaceDark,
+                    AppColors.surface,
+                    AppColors.surfaceLight,
+                  ],
+                  stops: [0.0, 0.5, 1.0],
+                ),
+              ),
+            ),
+            Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      AppColors.shadowLight.withValues(alpha: 0.35),
+                      Colors.transparent,
+                      AppColors.shadowDark.withValues(alpha: 0.25),
+                    ],
+                    stops: const [0.0, 0.55, 1.0],
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: padding,
+              child: child,
+            ),
+          ],
         ),
       ),
     );
@@ -124,3 +151,4 @@ class NeumorphicIconButton extends StatelessWidget {
     );
   }
 }
+

@@ -83,187 +83,175 @@ class _LoginPageState extends State<LoginPage> {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 20),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
+          child: Form(
+            key: _formKey,
             child: Column(
-              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Text(
+                  'Bienvenido',
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                        color: AppColors.primaryText,
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'a Colinas del Urubo I',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppColors.secondaryText,
+                        fontWeight: FontWeight.w500,
+                      ),
+                ),
+                const SizedBox(height: 36),
+                Text(
+                  'Iniciar sesion',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: AppColors.primaryText,
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+                const SizedBox(height: 28),
+                _buildLabel('Usuario'),
+                const SizedBox(height: 10),
+                NeumorphicInset(
+                  child: TextFormField(
+                    controller: _userController,
+                    decoration: const InputDecoration(
+                      border: InputBorder.none,
+                      hintText: 'Ingresa tu usuario',
+                    ),
+                    cursorColor: AppColors.accent,
+                    style: const TextStyle(
+                      color: AppColors.primaryText,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'El usuario es obligatorio.';
+                      }
+                      return null;
+                    },
+                  ),
+                ),
+                const SizedBox(height: 24),
+                _buildLabel('Contrasena'),
+                const SizedBox(height: 10),
+                NeumorphicInset(
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          controller: _passwordController,
+                          obscureText: _obscurePassword,
+                          decoration: const InputDecoration(
+                            border: InputBorder.none,
+                            hintText: 'Ingresa tu contrasena',
+                          ),
+                          cursorColor: AppColors.accent,
+                          style: const TextStyle(
+                            color: AppColors.primaryText,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'La contrasena es obligatoria.';
+                            }
+                            return null;
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _obscurePassword = !_obscurePassword;
+                          });
+                        },
+                        child: Icon(
+                          _obscurePassword
+                              ? Icons.visibility_off_outlined
+                              : Icons.visibility_outlined,
+                          color: AppColors.secondaryText,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Pendiente implementar recuperacion de contrasena.',
+                          ),
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                    },
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.secondaryText,
+                      padding: EdgeInsets.zero,
+                      textStyle: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    child: const Text('Olvidaste tu contrasena?'),
+                  ),
+                ),
+                const SizedBox(height: 16),
                 NeumorphicSurface(
-                  borderRadius: BorderRadius.circular(36),
-                  padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 36),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'Bienvenido',
-                          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                                color: AppColors.primaryText,
-                                fontWeight: FontWeight.w700,
-                              ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'a Colinas del Urubo I',
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                color: AppColors.secondaryText,
-                                fontWeight: FontWeight.w500,
-                              ),
-                        ),
-                        const SizedBox(height: 30),
-                        Text(
-                          'Iniciar sesion',
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                color: AppColors.primaryText,
-                                fontWeight: FontWeight.w700,
-                              ),
-                        ),
-                        const SizedBox(height: 24),
-                        _buildLabel('Usuario'),
-                        const SizedBox(height: 8),
-                        NeumorphicInset(
-                          child: TextFormField(
-                            controller: _userController,
-                            decoration: const InputDecoration(
-                              border: InputBorder.none,
-                              hintText: 'Ingresa tu usuario',
-                            ),
-                            cursorColor: AppColors.accent,
-                            style: const TextStyle(
-                              color: AppColors.primaryText,
-                              fontWeight: FontWeight.w500,
-                            ),
-                            validator: (value) {
-                              if (value == null || value.trim().isEmpty) {
-                                return 'El usuario es obligatorio.';
-                              }
-                              return null;
-                            },
-                          ),
-                        ),
-                        const SizedBox(height: 22),
-                        _buildLabel('Contrasena'),
-                        const SizedBox(height: 8),
-                        NeumorphicInset(
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: TextFormField(
-                                  controller: _passwordController,
-                                  obscureText: _obscurePassword,
-                                  decoration: const InputDecoration(
-                                    border: InputBorder.none,
-                                    hintText: 'Ingresa tu contrasena',
+                  borderRadius: BorderRadius.circular(24),
+                  padding: EdgeInsets.zero,
+                  child: Material(
+                    color: Colors.transparent,
+                    borderRadius: BorderRadius.circular(24),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(24),
+                      onTap: _isLoading ? null : _handleLogin,
+                      child: SizedBox(
+                        height: 56,
+                        child: Center(
+                          child: _isLoading
+                              ? const SizedBox(
+                                  width: 26,
+                                  height: 26,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.6,
+                                    valueColor: AlwaysStoppedAnimation(
+                                      AppColors.primaryText,
+                                    ),
                                   ),
-                                  cursorColor: AppColors.accent,
-                                  style: const TextStyle(
+                                )
+                              : const Text(
+                                  'Iniciar sesion',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 18,
                                     color: AppColors.primaryText,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                  validator: (value) {
-                                    if (value == null || value.isEmpty) {
-                                      return 'La contrasena es obligatoria.';
-                                    }
-                                    return null;
-                                  },
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              GestureDetector(
-                                onTap: () {
-                                  setState(() {
-                                    _obscurePassword = !_obscurePassword;
-                                  });
-                                },
-                                child: Icon(
-                                  _obscurePassword
-                                      ? Icons.visibility_off_outlined
-                                      : Icons.visibility_outlined,
-                                  color: AppColors.secondaryText,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton(
-                            onPressed: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Pendiente implementar recuperacion de contrasena.',
-                                  ),
-                                  duration: Duration(seconds: 2),
-                                ),
-                              );
-                            },
-                            style: TextButton.styleFrom(
-                              foregroundColor: AppColors.secondaryText,
-                              padding: EdgeInsets.zero,
-                              textStyle: const TextStyle(fontWeight: FontWeight.w600),
-                            ),
-                            child: const Text('Olvidaste tu contrasena?'),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        NeumorphicSurface(
-                          borderRadius: BorderRadius.circular(24),
-                          padding: EdgeInsets.zero,
-                          child: Material(
-                            color: Colors.transparent,
-                            borderRadius: BorderRadius.circular(24),
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(24),
-                              onTap: _isLoading ? null : _handleLogin,
-                              child: SizedBox(
-                                height: 54,
-                                child: Center(
-                                  child: _isLoading
-                                      ? const SizedBox(
-                                          width: 26,
-                                          height: 26,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2.6,
-                                            valueColor: AlwaysStoppedAnimation(
-                                              AppColors.primaryText,
-                                            ),
-                                          ),
-                                        )
-                                      : const Text(
-                                          'Iniciar sesion',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w700,
-                                            fontSize: 18,
-                                            color: AppColors.primaryText,
-                                          ),
-                                        ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 250),
-                          child: _errorMessage == null
-                              ? const SizedBox.shrink()
-                              : Text(
-                                  _errorMessage!,
-                                  key: ValueKey(_errorMessage),
-                                  style: const TextStyle(
-                                    color: Colors.redAccent,
-                                    fontWeight: FontWeight.w600,
                                   ),
                                 ),
                         ),
-                      ],
+                      ),
                     ),
                   ),
+                ),
+                const SizedBox(height: 24),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 250),
+                  child: _errorMessage == null
+                      ? const SizedBox.shrink()
+                      : Text(
+                          _errorMessage!,
+                          key: ValueKey(_errorMessage),
+                          style: const TextStyle(
+                            color: Colors.redAccent,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                 ),
               ],
             ),

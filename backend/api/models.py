@@ -172,3 +172,36 @@ class NotificacionUsuario(models.Model):
 
     class Meta:
         db_table = "notificacion_usuario"
+
+# =====================
+# Finanzas - Facturas y Pagos
+# =====================
+
+class Factura(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    vivienda = models.ForeignKey(Vivienda, on_delete=models.CASCADE)
+    periodo = models.CharField(max_length=7)
+    monto = models.DecimalField(max_digits=10, decimal_places=2)
+    tipo = models.CharField(max_length=30, default="expensa")
+    estado = models.CharField(max_length=15, default="PENDIENTE")
+    fecha_emision = models.DateField(auto_now_add=True)
+    fecha_vencimiento = models.DateField(null=True, blank=True)
+    fecha_pago = models.DateField(null=True, blank=True)
+
+    class Meta:
+        db_table = "factura"
+        unique_together = ("vivienda", "periodo", "tipo")
+
+
+class Pago(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    factura = models.ForeignKey(Factura, on_delete=models.CASCADE, related_name="pagos")
+    metodo = models.CharField(max_length=20)
+    monto_pagado = models.DecimalField(max_digits=10, decimal_places=2)
+    fecha_pago = models.DateTimeField(auto_now_add=True)
+    comprobante_url = models.CharField(max_length=200, null=True, blank=True)
+    estado = models.CharField(max_length=20, default="PENDIENTE")
+    referencia_externa = models.CharField(max_length=100, null=True, blank=True)
+
+    class Meta:
+        db_table = "pago"
