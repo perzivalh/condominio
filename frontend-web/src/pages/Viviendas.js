@@ -23,6 +23,7 @@ function Viviendas() {
   const [formData, setFormData] = useState(initialFormState);
   const [activeId, setActiveId] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -53,6 +54,16 @@ function Viviendas() {
     });
     return map;
   }, [condominios]);
+
+  const filteredViviendas = useMemo(() => {
+    const normalized = searchTerm.trim().toLowerCase();
+    if (!normalized) {
+      return viviendas;
+    }
+    return viviendas.filter((vivienda) =>
+      (vivienda.codigo_unidad || "").toLowerCase().includes(normalized)
+    );
+  }, [searchTerm, viviendas]);
 
   const openCreateModal = () => {
     if (!canManage) return;
@@ -130,11 +141,21 @@ function Viviendas() {
               Administra las viviendas registradas dentro del condominio.
             </p>
           </div>
-          {canManage && (
-            <button className="gestion-add-button" onClick={openCreateModal}>
-              + Nueva vivienda
-            </button>
-          )}
+          <div className="gestion-header-actions">
+            <input
+              className="gestion-search-input"
+              type="search"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Buscar por código"
+              aria-label="Buscar vivienda por código"
+            />
+            {canManage && (
+              <button className="gestion-add-button" onClick={openCreateModal}>
+                + Nueva vivienda
+              </button>
+            )}
+          </div>
         </div>
 
         {!canManage && (
@@ -150,6 +171,10 @@ function Viviendas() {
             <div className="gestion-empty">Cargando viviendas...</div>
           ) : viviendas.length === 0 ? (
             <div className="gestion-empty">No hay viviendas registradas.</div>
+          ) : filteredViviendas.length === 0 ? (
+            <div className="gestion-empty">
+              No se encontraron viviendas para la búsqueda actual.
+            </div>
           ) : (
             <table className="gestion-table">
               <thead>
@@ -162,7 +187,7 @@ function Viviendas() {
                 </tr>
               </thead>
               <tbody>
-                {viviendas.map((vivienda) => (
+                {filteredViviendas.map((vivienda) => (
                   <tr key={vivienda.id}>
                     <td>{vivienda.codigo_unidad}</td>
                     <td>{vivienda.bloque || "-"}</td>

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import API from "../api/axiosConfig";
 import { useAuth } from "../context/AuthContext";
 import CrudModal from "../components/CrudModal";
@@ -24,6 +24,7 @@ function Vehiculos() {
   const [formData, setFormData] = useState(initialForm);
   const [activeId, setActiveId] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -115,6 +116,16 @@ function Vehiculos() {
     }
   };
 
+  const filteredVehiculos = useMemo(() => {
+    const normalized = searchTerm.trim().toLowerCase();
+    if (!normalized) {
+      return vehiculos;
+    }
+    return vehiculos.filter((vehiculo) =>
+      (vehiculo.placa || "").toLowerCase().includes(normalized)
+    );
+  }, [searchTerm, vehiculos]);
+
   return (
     <div className="gestion-wrapper">
       <div className="gestion-card">
@@ -125,11 +136,21 @@ function Vehiculos() {
               Controla los vehículos asociados a los residentes del condominio.
             </p>
           </div>
-          {canManage && (
-            <button className="gestion-add-button" onClick={openCreateModal}>
-              + Nuevo vehículo
-            </button>
-          )}
+          <div className="gestion-header-actions">
+            <input
+              className="gestion-search-input"
+              type="search"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Buscar por placa"
+              aria-label="Buscar vehículo por placa"
+            />
+            {canManage && (
+              <button className="gestion-add-button" onClick={openCreateModal}>
+                + Nuevo vehículo
+              </button>
+            )}
+          </div>
         </div>
 
         {!canManage && (
@@ -145,6 +166,10 @@ function Vehiculos() {
             <div className="gestion-empty">Cargando vehículos...</div>
           ) : vehiculos.length === 0 ? (
             <div className="gestion-empty">No hay vehículos registrados.</div>
+          ) : filteredVehiculos.length === 0 ? (
+            <div className="gestion-empty">
+              No se encontraron vehículos para la búsqueda actual.
+            </div>
           ) : (
             <table className="gestion-table">
               <thead>
@@ -158,7 +183,7 @@ function Vehiculos() {
                 </tr>
               </thead>
               <tbody>
-                {vehiculos.map((vehiculo) => (
+                {filteredVehiculos.map((vehiculo) => (
                   <tr key={vehiculo.id}>
                     <td>{vehiculo.placa}</td>
                     <td>{vehiculo.marca || "-"}</td>

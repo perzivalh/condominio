@@ -25,6 +25,14 @@
   flex-wrap: wrap;
 }
 
+.gestion-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .gestion-card-title {
   margin: 0;
   font-size: 1.9rem;
@@ -83,9 +91,13 @@
 
 .gestion-table-container {
   overflow-x: auto;
+  overflow-y: auto;
+  max-height: 460px;
   border-radius: 28px;
   background: linear-gradient(145deg, #f7f9fc, #e0e4ef);
   box-shadow: inset -10px -10px 20px #ffffff, inset 10px 10px 24px rgba(163, 177, 198, 0.4);
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable both-edges;
 }
 
 .gestion-table {
@@ -147,6 +159,7 @@
   display: flex;
   flex-direction: column;
   gap: 18px;
+  align-items: flex-start;
 }
 
 .gestion-form-grid {
@@ -175,6 +188,38 @@
   font-size: 0.95rem;
   color: #1f2937;
   transition: box-shadow 0.2s ease;
+  max-width: 420px;
+}
+
+.gestion-textarea {
+  max-width: 520px;
+}
+
+.gestion-form-grid .gestion-input,
+.gestion-form-grid .gestion-select {
+  max-width: 100%;
+}
+
+.gestion-search-input {
+  border: none;
+  border-radius: 999px;
+  padding: 10px 18px;
+  background: linear-gradient(145deg, #ffffff, #e9edf5);
+  box-shadow: inset -6px -6px 12px #ffffff, inset 6px 6px 12px rgba(163, 177, 198, 0.45);
+  font-size: 0.95rem;
+  color: #1f2937;
+  transition: box-shadow 0.2s ease;
+  min-width: 220px;
+  max-width: 280px;
+}
+
+.gestion-search-input:focus {
+  outline: none;
+  box-shadow: inset -3px -3px 8px #ffffff, inset 6px 6px 12px rgba(59, 130, 246, 0.35);
+}
+
+.gestion-search-input::placeholder {
+  color: #94a3b8;
 }
 
 .gestion-input:focus,

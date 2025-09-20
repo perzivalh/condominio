@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import API from "../api/axiosConfig";
 import { useAuth } from "../context/AuthContext";
 import CrudModal from "../components/CrudModal";
@@ -25,6 +25,7 @@ function Residentes() {
   const [formData, setFormData] = useState(initialForm);
   const [activeId, setActiveId] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -118,6 +119,18 @@ function Residentes() {
     }
   };
 
+  const filteredResidentes = useMemo(() => {
+    const normalized = searchTerm.trim().toLowerCase();
+    if (!normalized) {
+      return residentes;
+    }
+    return residentes.filter((residente) => {
+      const fullName = `${residente.nombres || ""} ${residente.apellidos || ""}`.toLowerCase();
+      const ci = (residente.ci || "").toLowerCase();
+      return fullName.includes(normalized) || ci.includes(normalized);
+    });
+  }, [residentes, searchTerm]);
+
   return (
     <div className="gestion-wrapper">
       <div className="gestion-card">
@@ -128,11 +141,21 @@ function Residentes() {
               Mantén actualizada la información de los residentes del condominio.
             </p>
           </div>
-          {canManage && (
-            <button className="gestion-add-button" onClick={openCreateModal}>
-              + Nuevo residente
-            </button>
-          )}
+          <div className="gestion-header-actions">
+            <input
+              className="gestion-search-input"
+              type="search"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Buscar por nombre o CI"
+              aria-label="Buscar residente por nombre o CI"
+            />
+            {canManage && (
+              <button className="gestion-add-button" onClick={openCreateModal}>
+                + Nuevo residente
+              </button>
+            )}
+          </div>
         </div>
 
         {!canManage && (
@@ -148,6 +171,10 @@ function Residentes() {
             <div className="gestion-empty">Cargando residentes...</div>
           ) : residentes.length === 0 ? (
             <div className="gestion-empty">No hay residentes registrados.</div>
+          ) : filteredResidentes.length === 0 ? (
+            <div className="gestion-empty">
+              No se encontraron residentes para la búsqueda actual.
+            </div>
           ) : (
             <table className="gestion-table">
               <thead>
@@ -161,7 +188,7 @@ function Residentes() {
                 </tr>
               </thead>
               <tbody>
-                {residentes.map((residente) => (
+                {filteredResidentes.map((residente) => (
                   <tr key={residente.id}>
                     <td>{`${residente.nombres} ${residente.apellidos}`}</td>
                     <td>{residente.ci}</td>

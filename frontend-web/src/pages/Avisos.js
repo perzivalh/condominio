@@ -21,6 +21,7 @@ function Avisos() {
   const [formData, setFormData] = useState(initialForm);
   const [activeId, setActiveId] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const loadAvisos = useCallback(async () => {
     setLoading(true);
@@ -113,6 +114,16 @@ function Avisos() {
     }
   };
 
+  const filteredAvisos = useMemo(() => {
+    const normalized = searchTerm.trim().toLowerCase();
+    if (!normalized) {
+      return avisos;
+    }
+    return avisos.filter((aviso) =>
+      (aviso.titulo || "").toLowerCase().includes(normalized)
+    );
+  }, [avisos, searchTerm]);
+
   return (
     <div className="gestion-wrapper">
       <div className="gestion-card">
@@ -123,11 +134,21 @@ function Avisos() {
               Publica y administra los comunicados para los residentes.
             </p>
           </div>
-          {canManage && (
-            <button className="gestion-add-button" onClick={openCreateModal}>
-              + Nuevo aviso
-            </button>
-          )}
+          <div className="gestion-header-actions">
+            <input
+              className="gestion-search-input"
+              type="search"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Buscar por título"
+              aria-label="Buscar aviso por título"
+            />
+            {canManage && (
+              <button className="gestion-add-button" onClick={openCreateModal}>
+                + Nuevo aviso
+              </button>
+            )}
+          </div>
         </div>
 
         {!canManage && (
@@ -143,6 +164,10 @@ function Avisos() {
             <div className="gestion-empty">Cargando avisos...</div>
           ) : avisos.length === 0 ? (
             <div className="gestion-empty">No hay avisos registrados.</div>
+          ) : filteredAvisos.length === 0 ? (
+            <div className="gestion-empty">
+              No se encontraron avisos para la búsqueda actual.
+            </div>
           ) : (
             <table className="gestion-table">
               <thead>
@@ -154,7 +179,7 @@ function Avisos() {
                 </tr>
               </thead>
               <tbody>
-                {avisos.map((aviso) => (
+                {filteredAvisos.map((aviso) => (
                   <tr key={aviso.id}>
                     <td>{aviso.titulo}</td>
                     <td className="gestion-table-text">{aviso.contenido}</td>
