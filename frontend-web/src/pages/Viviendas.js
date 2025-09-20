@@ -101,7 +101,7 @@ function Viviendas() {
         bloque: formData.bloque.trim(),
         numero: formData.numero.trim(),
         estado: 1,
-        condominio: Number(formData.condominioId),
+        condominio: formData.condominioId || null,
       };
 
       if (modalState.mode === "create") {

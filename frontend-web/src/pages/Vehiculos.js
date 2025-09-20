@@ -86,7 +86,7 @@ function Vehiculos() {
         modelo: formData.modelo.trim(),
         color: formData.color.trim(),
         estado: 1,
-        residente_id: Number(formData.residenteId),
+        residente_id: formData.residenteId || null,
       };
 
       if (modalState.mode === "create") {

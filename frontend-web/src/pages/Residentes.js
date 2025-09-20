@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+﻿import React, { useCallback, useEffect, useMemo, useState } from "react";
 import API from "../api/axiosConfig";
 import { useAuth } from "../context/AuthContext";
 import CrudModal from "../components/CrudModal";
@@ -89,7 +89,7 @@ function Residentes() {
         telefono: formData.telefono.trim(),
         correo: formData.correo.trim(),
         estado: 1,
-        vivienda_id: formData.viviendaId ? Number(formData.viviendaId) : null,
+        vivienda_id: formData.viviendaId || null,
       };
 
       if (modalState.mode === "create") {

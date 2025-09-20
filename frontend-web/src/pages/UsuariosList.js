@@ -241,7 +241,7 @@ export default function UsuariosList() {
     };
 
     if (config?.requiresResidente) {
-      payload.residente_id = Number(formData.residenteId);
+      payload.residente_id = formData.residenteId || null;
     } else {
       payload.email_in = formData.email.trim();
     }
