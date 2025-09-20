@@ -115,6 +115,7 @@ class FacturaSerializer(serializers.ModelSerializer):
             "fecha_emision",
             "fecha_vencimiento",
             "fecha_pago",
+            "residentes",
         ]
         read_only_fields = [
             "fecha_emision",
@@ -151,10 +152,14 @@ class FacturaAdminSerializer(serializers.ModelSerializer):
             "fecha_emision",
             "fecha_vencimiento",
             "fecha_pago",
+            "residentes",
         ]
 
     def get_residentes(self, obj):
-        relaciones = getattr(obj, "_residentes_activos", None)
+        vivienda = getattr(obj, "vivienda", None)
+        relaciones = None
+        if vivienda is not None:
+            relaciones = getattr(vivienda, "_residentes_activos", None)
         if relaciones is None:
             relaciones = (
                 ResidenteVivienda.objects.select_related("residente")

@@ -113,7 +113,7 @@ def _expensa_config_por_bloque():
 
 def _prefetch_residentes_activos():
     return Prefetch(
-        "residentevivienda_set",
+        "vivienda__residentevivienda_set",
         queryset=
         ResidenteVivienda.objects.select_related("residente").filter(
             fecha_hasta__isnull=True
@@ -137,7 +137,10 @@ def _build_factura_pdf(factura):
     detalles = list(
         factura.detalles.all().order_by("tipo", "descripcion")
     )
-    residentes = getattr(factura, "_residentes_activos", [])
+    vivienda_prefetch = getattr(factura, "vivienda", None)
+    residentes = []
+    if vivienda_prefetch is not None:
+        residentes = getattr(vivienda_prefetch, "_residentes_activos", [])
     if not residentes:
         residentes = (
             ResidenteVivienda.objects.select_related("residente")
