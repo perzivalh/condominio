@@ -1,10 +1,15 @@
-from rest_framework import viewsets, status
-from rest_framework.permissions import IsAuthenticated, AllowAny
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.response import Response
-from django.utils import timezone
-import uuid, datetime
+import datetime
+import logging
+import uuid
+
+from django.conf import settings
 from django.contrib.auth.models import User
+from django.core.mail import send_mail
+from django.utils import timezone
+from rest_framework import status, viewsets
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.response import Response
 
 
 from .models import (
@@ -116,34 +121,124 @@ class CondominioViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
 
+# --- HELPERS ---
+logger = logging.getLogger(__name__)
+
+
+def _usuario_unico_por_correo(correo: str):
+    correo_normalizado = correo.strip()
+    queryset = (
+        Usuario.objects.filter(user__email__iexact=correo_normalizado)
+        .select_related("user")
+        .order_by("id")
+    )
+    usuarios = list(queryset[:2])
+
+    if not usuarios:
+        return None, Response({"error": "Usuario no encontrado"}, status=status.HTTP_404_NOT_FOUND)
+
+    if len(usuarios) > 1:
+        return None, Response(
+            {
+                "error": (
+                    "Existen múltiples cuentas con este correo. "
+                    "Comunícate con el administrador para continuar."
+                )
+            },
+            status=status.HTTP_409_CONFLICT,
+        )
+
+    return usuarios[0], None
+
+
+def _build_reset_link(email: str, token: str) -> str | None:
+    template = getattr(settings, "PASSWORD_RESET_URL_TEMPLATE", "")
+    if not template:
+        return None
+
+    try:
+        return template.format(email=email, token=token)
+    except Exception:
+        logger.warning("PASSWORD_RESET_URL_TEMPLATE malformado. Se envía correo sin enlace.")
+        return None
+
+
+def _enviar_correo_recuperacion(usuario: Usuario, correo: str, token: str, minutos_validez: int) -> None:
+    nombre = usuario.user.get_full_name().strip() if usuario.user else ""
+    saludo = f"Hola {nombre}," if nombre else "Hola,"
+
+    reset_link = _build_reset_link(correo, token)
+    lineas = [
+        saludo,
+        "",
+        "Recibimos una solicitud para restablecer tu contraseña en Condominio.",
+        f"Tu código de verificación es: {token}",
+        f"Este código vencerá en {minutos_validez} minutos.",
+    ]
+
+    if reset_link:
+        lineas.extend([
+            "",
+            "También puedes continuar con el proceso utilizando el siguiente enlace:",
+            reset_link,
+        ])
+
+    lineas.extend([
+        "",
+        "Si tú no solicitaste este cambio puedes ignorar este correo.",
+    ])
+
+    asunto = getattr(
+        settings,
+        "PASSWORD_RESET_EMAIL_SUBJECT",
+        "Instrucciones para restablecer tu contraseña",
+    )
+
+    remitente = getattr(settings, "DEFAULT_FROM_EMAIL", None)
+    send_mail(asunto, "\n".join(lineas), remitente, [correo], fail_silently=False)
+
+
 # --- RECUPERAR PASSWORD ---
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def recuperar_password(request):
     correo = request.data.get("correo") or request.data.get("email")
-    if not correo:
+    if correo is None:
         return Response({"error": "Debe ingresar un correo"}, status=status.HTTP_400_BAD_REQUEST)
 
+    correo_normalizado = str(correo).strip()
+    if not correo_normalizado:
+        return Response({"error": "Debe ingresar un correo"}, status=status.HTTP_400_BAD_REQUEST)
+
+    usuario, error_response = _usuario_unico_por_correo(correo_normalizado)
+    if error_response:
+        return error_response
+
+    token = str(uuid.uuid4())[:8]
+    minutos_validez = getattr(settings, "PASSWORD_RESET_TOKEN_MINUTES", 15)
+    expiracion = timezone.now() + datetime.timedelta(minutes=minutos_validez)
+
+    token_obj = TokenRecuperacion.objects.create(
+        usuario=usuario,
+        codigo=token,
+        expiracion=expiracion,
+        usado=False
+    )
+
     try:
-        usuario = Usuario.objects.get(user__email=correo)
-
-        token = str(uuid.uuid4())[:8]
-        expiracion = timezone.now() + datetime.timedelta(minutes=15)
-
-        TokenRecuperacion.objects.create(
-            usuario=usuario,
-            codigo=token,
-            expiracion=expiracion,
-            usado=False
-        )
-
+        _enviar_correo_recuperacion(usuario, correo_normalizado, token, minutos_validez)
+    except Exception as exc:  # pragma: no cover - logging, pero mantenemos mensaje al cliente
+        logger.error("Error enviando correo de recuperación: %s", exc)
+        token_obj.delete()
         return Response(
-            {"mensaje": f"Se envió un token de recuperación a {correo} (simulado)"},
-            status=status.HTTP_200_OK
+            {"error": "No fue posible enviar el correo de recuperación. Inténtalo nuevamente."},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
 
-    except Usuario.DoesNotExist:
-        return Response({"error": "Usuario no encontrado"}, status=status.HTTP_404_NOT_FOUND)
+    return Response(
+        {"mensaje": f"Se envió un token de recuperación a {correo_normalizado}."},
+        status=status.HTTP_200_OK
+    )
 
 
 # --- RESET PASSWORD ---
@@ -154,13 +249,16 @@ def reset_password(request):
     codigo = request.data.get("token")
     nueva_pass = request.data.get("nueva_password")
 
-    if not correo or not codigo or not nueva_pass:
+    if correo is None or not codigo or not nueva_pass:
         return Response({"error": "Datos incompletos"}, status=status.HTTP_400_BAD_REQUEST)
 
-    try:
-        usuario = Usuario.objects.get(user__email=correo)
-    except Usuario.DoesNotExist:
-        return Response({"error": "Usuario no encontrado"}, status=status.HTTP_404_NOT_FOUND)
+    correo_normalizado = str(correo).strip()
+    if not correo_normalizado:
+        return Response({"error": "Datos incompletos"}, status=status.HTTP_400_BAD_REQUEST)
+
+    usuario, error_response = _usuario_unico_por_correo(correo_normalizado)
+    if error_response:
+        return error_response
 
     token_obj = TokenRecuperacion.objects.filter(
         usuario=usuario, codigo=codigo, usado=False

@@ -1,6 +1,8 @@
 from datetime import timedelta
 
 from django.contrib.auth.models import User
+from django.core import mail
+from django.test.utils import override_settings
 from django.utils import timezone
 from rest_framework.test import APITestCase, APIClient
 
@@ -27,6 +29,32 @@ class PasswordFlowsTests(APITestCase):
         self.assertTrue(
             TokenRecuperacion.objects.filter(usuario=self.usuario, usado=False).exists()
         )
+
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        DEFAULT_FROM_EMAIL="no-reply@testserver",
+    )
+    def test_recuperar_password_sends_email_with_token(self):
+        response = self.client.post(
+            "/api/recuperar-password/",
+            {"correo": self.user.email},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(mail.outbox), 1)
+        message = mail.outbox[0]
+
+        self.assertIn(self.user.email, message.to)
+        self.assertTrue(message.subject)
+
+        token_obj = (
+            TokenRecuperacion.objects.filter(usuario=self.usuario)
+            .order_by("-expiracion")
+            .first()
+        )
+        self.assertIsNotNone(token_obj)
+        self.assertIn(token_obj.codigo, message.body)
 
     def test_reset_password_updates_user_password(self):
         token = TokenRecuperacion.objects.create(
