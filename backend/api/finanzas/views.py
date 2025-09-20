@@ -1,12 +1,13 @@
 from calendar import monthrange
-from datetime import date
-from decimal import Decimal
+from datetime import date, datetime, time
+from decimal import Decimal, InvalidOperation
 
 from django.db import transaction
-from django.db.models import Sum
+from django.db.models import Prefetch, Q, Sum
 from django.db.models.functions import TruncMonth, Upper
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
+from django.http import HttpResponse
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
@@ -25,6 +26,8 @@ from ..models import (
 )
 from .serializers import (
     ExpensaConfigSerializer,
+    FacturaAdminSerializer,
+    FacturaDetalleSerializer,
     FacturaSerializer,
     MultaAplicadaSerializer,
     MultaConfigSerializer,
@@ -108,6 +111,133 @@ def _expensa_config_por_bloque():
     return resultado
 
 
+def _prefetch_residentes_activos():
+    return Prefetch(
+        "residentevivienda_set",
+        queryset=
+        ResidenteVivienda.objects.select_related("residente").filter(
+            fecha_hasta__isnull=True
+        ),
+        to_attr="_residentes_activos",
+    )
+
+
+def _pdf_escape(text):
+    if text is None:
+        return ""
+    return (
+        str(text)
+        .replace("\\", "\\\\")
+        .replace("(", "\\(")
+        .replace(")", "\\)")
+    )
+
+
+def _build_factura_pdf(factura):
+    detalles = list(
+        factura.detalles.all().order_by("tipo", "descripcion")
+    )
+    residentes = getattr(factura, "_residentes_activos", [])
+    if not residentes:
+        residentes = (
+            ResidenteVivienda.objects.select_related("residente")
+            .filter(vivienda=factura.vivienda, fecha_hasta__isnull=True)
+            .order_by("-fecha_desde")
+        )
+
+    nombres_residentes = [
+        f"{rel.residente.nombres} {rel.residente.apellidos}".strip()
+        for rel in residentes
+    ]
+    bloque = factura.vivienda.bloque or "-"
+
+    lineas = [
+        f"Factura periodo {factura.periodo}",
+        f"Condominio: {factura.vivienda.condominio.nombre}",
+        f"Vivienda: {factura.vivienda.codigo_unidad} (Bloque {bloque})",
+        "Residentes: " + (", ".join(nombres_residentes) or "-"),
+        f"Estado: {factura.estado}",
+        f"Monto total: Bs {factura.monto}",
+        "",
+        "Detalle:",
+    ]
+
+    if detalles:
+        for detalle in detalles:
+            lineas.append(
+                f"- {detalle.descripcion} ({detalle.tipo}) Bs {detalle.monto}"
+            )
+    else:
+        lineas.append("(Sin detalles registrados)")
+
+    if factura.fecha_vencimiento:
+        lineas.append("")
+        lineas.append(f"Fecha de vencimiento: {factura.fecha_vencimiento}")
+    if factura.fecha_pago:
+        lineas.append(f"Fecha de pago: {factura.fecha_pago}")
+
+    from io import BytesIO
+
+    buffer = BytesIO()
+    write = buffer.write
+    write(b"%PDF-1.4\n")
+    offsets = {}
+
+    def add_object(obj_id, body):
+        offsets[obj_id] = buffer.tell()
+        write(f"{obj_id} 0 obj\n".encode("latin-1"))
+        if isinstance(body, bytes):
+            write(body)
+        else:
+            write(body.encode("latin-1"))
+        write(b"\nendobj\n")
+
+    add_object(1, "<< /Type /Catalog /Pages 2 0 R >>")
+    add_object(2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>")
+
+    content_lines = ["BT", "/F1 12 Tf"]
+    start_y = 780
+    for index, linea in enumerate(lineas):
+        y = start_y - index * 18
+        content_lines.append(
+            f"1 0 0 1 72 {y} Tm ({_pdf_escape(linea)}) Tj"
+        )
+    content_lines.append("ET")
+
+    content_stream = "\n".join(content_lines).encode("latin-1")
+
+    stream_header = f"<< /Length {len(content_stream)} >>\nstream\n".encode("latin-1")
+    offsets[4] = buffer.tell()
+    write(b"4 0 obj\n")
+    write(stream_header)
+    write(content_stream)
+    write(b"\nendstream\nendobj\n")
+
+    add_object(
+        3,
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R "
+        "/Resources << /Font << /F1 5 0 R >> >> >>",
+    )
+    add_object(5, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")
+
+    xref_position = buffer.tell()
+    write(b"xref\n")
+    max_obj = max(offsets.keys()) if offsets else 0
+    write(f"0 {max_obj + 1}\n".encode("latin-1"))
+    write(b"0000000000 65535 f \n")
+    for obj_id in range(1, max_obj + 1):
+        offset = offsets.get(obj_id, 0)
+        write(f"{offset:010d} 00000 n \n".encode("latin-1"))
+    size_value = max_obj + 1
+    write(
+        (
+            "trailer\n<< /Size {size} /Root 1 0 R >>\nstartxref\n{pos}\n%%EOF".format(
+                size=size_value, pos=xref_position
+            )
+        ).encode("latin-1")
+    )
+
+    return buffer.getvalue()
 @transaction.atomic
 def _generar_facturas_para_periodo(periodo):
     year, month = _parse_periodo(periodo)
@@ -287,6 +417,203 @@ def resumen_finanzas_admin(request):
     }
 
     return Response(data)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def facturas_admin(request):
+    queryset = (
+        Factura.objects.select_related("vivienda", "vivienda__condominio")
+        .prefetch_related(_prefetch_residentes_activos())
+        .order_by("-fecha_vencimiento", "-fecha_emision", "-periodo")
+    )
+
+    periodo = request.query_params.get("periodo")
+    if periodo:
+        queryset = queryset.filter(periodo__icontains=periodo.strip())
+
+    estado = request.query_params.get("estado")
+    if estado:
+        queryset = queryset.filter(estado__iexact=estado.strip())
+
+    vivienda_param = request.query_params.get("vivienda")
+    if vivienda_param:
+        queryset = queryset.filter(
+            vivienda__codigo_unidad__icontains=vivienda_param.strip()
+        )
+
+    residente_param = request.query_params.get("residente")
+    if residente_param:
+        queryset = queryset.filter(
+            Q(vivienda__residentevivienda__residente__nombres__icontains=residente_param)
+            | Q(
+                vivienda__residentevivienda__residente__apellidos__icontains=
+                residente_param
+            )
+        )
+
+    search = request.query_params.get("search")
+    if search:
+        queryset = queryset.filter(
+            Q(periodo__icontains=search)
+            | Q(vivienda__codigo_unidad__icontains=search)
+            | Q(vivienda__residentevivienda__residente__nombres__icontains=search)
+            | Q(vivienda__residentevivienda__residente__apellidos__icontains=search)
+        )
+
+    tipo = request.query_params.get("tipo")
+    if tipo:
+        queryset = queryset.filter(tipo__iexact=tipo.strip())
+
+    queryset = queryset.distinct()
+
+    serializer = FacturaAdminSerializer(queryset, many=True)
+    return Response(serializer.data)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def factura_admin_detalle(request, pk):
+    factura = get_object_or_404(
+        Factura.objects.select_related("vivienda", "vivienda__condominio")
+        .prefetch_related(
+            _prefetch_residentes_activos(),
+            Prefetch(
+                "detalles",
+                queryset=FacturaDetalle.objects.order_by("tipo", "descripcion"),
+            ),
+            Prefetch("pagos", queryset=Pago.objects.order_by("-fecha_pago")),
+        ),
+        pk=pk,
+    )
+
+    factura_data = FacturaAdminSerializer(factura).data
+    detalles_data = FacturaDetalleSerializer(factura.detalles.all(), many=True).data
+    pagos_data = PagoSerializer(factura.pagos.all(), many=True).data
+
+    return Response(
+        {
+            "factura": factura_data,
+            "detalles": detalles_data,
+            "pagos": pagos_data,
+        }
+    )
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def factura_admin_pdf(request, pk):
+    factura = get_object_or_404(
+        Factura.objects.select_related("vivienda", "vivienda__condominio")
+        .prefetch_related(
+            _prefetch_residentes_activos(),
+            Prefetch(
+                "detalles",
+                queryset=FacturaDetalle.objects.order_by("tipo", "descripcion"),
+            ),
+        ),
+        pk=pk,
+    )
+
+    pdf_bytes = _build_factura_pdf(factura)
+    filename = (
+        f"factura-{factura.vivienda.codigo_unidad}-{factura.periodo}".replace(" ", "_")
+        + ".pdf"
+    )
+    response = HttpResponse(pdf_bytes, content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def registrar_pago_manual(request, pk):
+    factura = get_object_or_404(Factura, pk=pk)
+
+    if factura.estado and factura.estado.upper() in FACTURA_PAID_STATES:
+        return Response(
+            {"detail": "La factura ya se encuentra registrada como pagada."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    monto_entrada = request.data.get("monto_pagado") or request.data.get("monto")
+    if monto_entrada in (None, ""):
+        monto_dec = Decimal(factura.monto)
+    else:
+        try:
+            monto_dec = Decimal(str(monto_entrada))
+        except (InvalidOperation, TypeError, ValueError):
+            return Response(
+                {"detail": "El monto ingresado no es válido."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+    if monto_dec <= Decimal("0"):
+        return Response(
+            {"detail": "El monto debe ser mayor a cero."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    metodo = (request.data.get("metodo") or "EFECTIVO").upper()
+    referencia = request.data.get("referencia") or request.data.get("observaciones")
+    if referencia:
+        referencia = str(referencia)
+
+    fecha_pago_param = request.data.get("fecha_pago")
+    fecha_pago_date = None
+    if fecha_pago_param:
+        try:
+            fecha_pago_date = datetime.strptime(fecha_pago_param, "%Y-%m-%d").date()
+        except ValueError:
+            return Response(
+                {"detail": "La fecha de pago debe tener formato YYYY-MM-DD."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+    fecha_pago_final = fecha_pago_date or timezone.localdate()
+
+    with transaction.atomic():
+        pago = Pago.objects.create(
+            factura=factura,
+            metodo=metodo,
+            monto_pagado=monto_dec,
+            estado="CONFIRMADO",
+            referencia_externa=referencia,
+        )
+
+        if fecha_pago_date:
+            pago_fecha = datetime.combine(fecha_pago_date, time(hour=12, minute=0))
+            if timezone.is_naive(pago_fecha):
+                pago_fecha = timezone.make_aware(pago_fecha)
+            Pago.objects.filter(pk=pago.pk).update(fecha_pago=pago_fecha)
+            pago.refresh_from_db()
+        else:
+            pago.refresh_from_db()
+
+        factura.estado = "PAGADA"
+        factura.fecha_pago = fecha_pago_final
+        factura.save(update_fields=["estado", "fecha_pago"])
+
+    factura_refrescada = (
+        Factura.objects.select_related("vivienda", "vivienda__condominio")
+        .prefetch_related(
+            _prefetch_residentes_activos(),
+            Prefetch(
+                "detalles",
+                queryset=FacturaDetalle.objects.order_by("tipo", "descripcion"),
+            ),
+            Prefetch("pagos", queryset=Pago.objects.order_by("-fecha_pago")),
+        )
+        .get(pk=factura.pk)
+    )
+
+    data = {
+        "factura": FacturaAdminSerializer(factura_refrescada).data,
+        "pagos": PagoSerializer(factura_refrescada.pagos.all(), many=True).data,
+        "pago": PagoSerializer(pago).data,
+    }
+
+    return Response(data, status=status.HTTP_200_OK)
 
 
 @api_view(["GET"])

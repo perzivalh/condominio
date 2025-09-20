@@ -274,7 +274,7 @@
   gap: 16px;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
 }
 
 .finanzas-config-action-group {
@@ -328,6 +328,218 @@
   cursor: not-allowed;
   opacity: 0.6;
   transform: none;
+}
+
+.finanzas-icon-button {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  background: linear-gradient(145deg, #f7faff, #d5dbe8);
+  box-shadow: -6px -6px 12px #ffffff, 6px 6px 12px rgba(163, 177, 198, 0.45);
+  transition: transform 0.2s ease;
+}
+
+.finanzas-icon-button:hover,
+.finanzas-icon-button:focus-visible {
+  transform: translateY(-1px);
+  outline: none;
+}
+
+.finanzas-icon-button.active {
+  box-shadow: inset -6px -6px 12px #ffffff, inset 6px 6px 12px rgba(163, 177, 198, 0.45);
+}
+
+.finanzas-icon-button .icon {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 18px 18px;
+}
+
+.finanzas-icon-button .icon-search {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%234a5568' d='M15.5 14h-.79l-.28-.27a6.5 6.5 0 10-1.06 1.06l.27.28v.79l4.5 4.5 1.5-1.5-4.5-4.5zm-5 0a4.5 4.5 0 110-9 4.5 4.5 0 010 9z'/%3E%3C/svg%3E");
+}
+
+.finanzas-icon-button .icon-filter {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%234a5568' d='M4 5h16l-6 7v5l-4 2v-7z'/%3E%3C/svg%3E");
+}
+
+.finanzas-facturas {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.finanzas-facturas-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.finanzas-facturas-search {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: linear-gradient(145deg, #f7faff, #d5dbe8);
+  box-shadow: -8px -8px 16px #ffffff, 8px 8px 16px rgba(163, 177, 198, 0.45);
+}
+
+.finanzas-facturas-search input {
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 0.95rem;
+  color: #2d3748;
+  min-width: 220px;
+}
+
+.finanzas-filters-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 22px 24px;
+  border-radius: 24px;
+  background: linear-gradient(145deg, #f7faff, #d5dbe8);
+  box-shadow: -10px -10px 20px #ffffff, 10px 10px 20px rgba(163, 177, 198, 0.45);
+}
+
+.finanzas-filters-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 18px;
+}
+
+.finanzas-filters-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.finanzas-facturas-feedback {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 18px 22px;
+  border-radius: 18px;
+  background: linear-gradient(145deg, #f7faff, #d5dbe8);
+  box-shadow: -8px -8px 16px #ffffff, 8px 8px 16px rgba(163, 177, 198, 0.45);
+}
+
+.finanzas-facturas-feedback .error {
+  margin: 0;
+  color: #b42318;
+  font-weight: 600;
+}
+
+.finanzas-facturas-feedback .success {
+  margin: 0;
+  color: #1f6f3d;
+  font-weight: 600;
+}
+
+.factura-detalle {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.factura-detalle-header {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.factura-detalle-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 16px;
+}
+
+.factura-detalle-label {
+  display: block;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #6b7280;
+}
+
+.factura-detalle-value {
+  display: block;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.factura-detalle-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(76, 91, 181, 0.12);
+  color: #4c5bb5;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.75rem;
+}
+
+.factura-detalle-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.factura-detalle-section {
+  padding: 20px 22px;
+  border-radius: 24px;
+  background: linear-gradient(145deg, #f7faff, #d5dbe8);
+  box-shadow: -10px -10px 20px #ffffff, 10px 10px 20px rgba(163, 177, 198, 0.45);
+}
+
+.factura-detalle-section h4 {
+  margin-top: 0;
+  margin-bottom: 16px;
+  color: #1f2937;
+}
+
+.factura-detalle-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.factura-detalle-table th,
+.factura-detalle-table td {
+  padding: 12px 14px;
+  text-align: left;
+  border-bottom: 1px solid rgba(163, 177, 198, 0.35);
+}
+
+.factura-detalle-table th {
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  color: #6b7280;
+}
+
+.factura-detalle-empty {
+  margin: 0;
+  color: #4a5568;
+}
+
+.pago-manual-resumen {
+  margin: 0 0 12px;
+  color: #4a5568;
+  line-height: 1.5;
 }
 
 .finanzas-table-wrapper {
@@ -398,6 +610,11 @@
 .finanzas-pill.warning {
   background: rgba(241, 165, 65, 0.18);
   color: #a05a1b;
+}
+
+.finanzas-pill.info {
+  background: rgba(108, 123, 216, 0.18);
+  color: #4c5bb5;
 }
 
 .finanzas-config-loader,

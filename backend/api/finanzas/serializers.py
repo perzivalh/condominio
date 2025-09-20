@@ -1,13 +1,15 @@
 ﻿from rest_framework import serializers
 
 from ..models import (
+    Condominio,
     ExpensaConfig,
     Factura,
+    FacturaDetalle,
     MultaAplicada,
     MultaConfig,
     Pago,
+    ResidenteVivienda,
     Vivienda,
-    Condominio,
 )
 
 
@@ -118,6 +120,52 @@ class FacturaSerializer(serializers.ModelSerializer):
             "fecha_emision",
             "fecha_pago",
         ]
+
+
+class FacturaDetalleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FacturaDetalle
+        fields = ["id", "descripcion", "tipo", "monto"]
+
+
+class FacturaAdminSerializer(serializers.ModelSerializer):
+    vivienda_codigo = serializers.CharField(source="vivienda.codigo_unidad", read_only=True)
+    vivienda_bloque = serializers.CharField(source="vivienda.bloque", read_only=True)
+    condominio_nombre = serializers.CharField(
+        source="vivienda.condominio.nombre", read_only=True
+    )
+    residentes = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Factura
+        fields = [
+            "id",
+            "vivienda",
+            "vivienda_codigo",
+            "vivienda_bloque",
+            "condominio_nombre",
+            "periodo",
+            "monto",
+            "tipo",
+            "estado",
+            "fecha_emision",
+            "fecha_vencimiento",
+            "fecha_pago",
+        ]
+
+    def get_residentes(self, obj):
+        relaciones = getattr(obj, "_residentes_activos", None)
+        if relaciones is None:
+            relaciones = (
+                ResidenteVivienda.objects.select_related("residente")
+                .filter(vivienda=obj.vivienda, fecha_hasta__isnull=True)
+                .order_by("-fecha_desde")
+            )
+        nombres = []
+        for relacion in relaciones:
+            residente = relacion.residente
+            nombres.append(f"{residente.nombres} {residente.apellidos}".strip())
+        return nombres
 
 
 class PagoSerializer(serializers.ModelSerializer):

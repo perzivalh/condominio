@@ -2,6 +2,7 @@ import React, {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -18,6 +19,22 @@ const TABS = [
 const CONFIG_TABS = [
   { id: "expensas", label: "Expensas" },
   { id: "multas", label: "Multas" },
+];
+
+const INITIAL_FACTURA_FILTERS = {
+  search: "",
+  periodo: "",
+  vivienda: "",
+  residente: "",
+  estado: "",
+};
+
+const FACTURA_ESTADO_OPTIONS = [
+  { value: "", label: "Todos" },
+  { value: "PENDIENTE", label: "Pendiente" },
+  { value: "PAGADA", label: "Pagada" },
+  { value: "PAGADO", label: "Pagado" },
+  { value: "CANCELADA", label: "Cancelada" },
 ];
 
 const PERIODICIDAD_OPTIONS = [
@@ -452,6 +469,251 @@ const clampPercentage = (value) => {
   return value;
 };
 
+const FacturaDetalleView = ({
+  factura,
+  detalles,
+  pagos,
+  onDownload,
+  formatCurrency,
+  formatDate,
+}) => {
+  if (!factura) {
+    return (
+      <div className="factura-detalle-empty">
+        <p>No se encontró información de la factura.</p>
+      </div>
+    );
+  }
+
+  const residentesLabel =
+    Array.isArray(factura.residentes) && factura.residentes.length
+      ? factura.residentes.join(", ")
+      : "-";
+
+  return (
+    <div className="factura-detalle">
+      <div className="factura-detalle-header">
+        <div className="factura-detalle-summary">
+          <div>
+            <span className="factura-detalle-label">Periodo</span>
+            <span className="factura-detalle-value">{factura.periodo}</span>
+          </div>
+          <div>
+            <span className="factura-detalle-label">Vivienda</span>
+            <span className="factura-detalle-value">
+              {factura.vivienda_codigo || factura.vivienda}
+            </span>
+          </div>
+          <div>
+            <span className="factura-detalle-label">Bloque</span>
+            <span className="factura-detalle-value">
+              {factura.vivienda_bloque || "-"}
+            </span>
+          </div>
+          <div>
+            <span className="factura-detalle-label">Residentes</span>
+            <span className="factura-detalle-value">{residentesLabel}</span>
+          </div>
+          <div>
+            <span className="factura-detalle-label">Estado</span>
+            <span className="factura-detalle-pill">{factura.estado}</span>
+          </div>
+          <div>
+            <span className="factura-detalle-label">Monto total</span>
+            <span className="factura-detalle-value">
+              {formatCurrency(factura.monto)}
+            </span>
+          </div>
+          <div>
+            <span className="factura-detalle-label">Emisión</span>
+            <span className="factura-detalle-value">
+              {formatDate(factura.fecha_emision)}
+            </span>
+          </div>
+          <div>
+            <span className="factura-detalle-label">Vencimiento</span>
+            <span className="factura-detalle-value">
+              {formatDate(factura.fecha_vencimiento)}
+            </span>
+          </div>
+          <div>
+            <span className="factura-detalle-label">Pago</span>
+            <span className="factura-detalle-value">
+              {formatDate(factura.fecha_pago)}
+            </span>
+          </div>
+        </div>
+        <div className="factura-detalle-actions">
+          <button
+            type="button"
+            className="finanzas-button primary"
+            onClick={onDownload}
+          >
+            Descargar PDF
+          </button>
+        </div>
+      </div>
+
+      <div className="factura-detalle-section">
+        <h4>Conceptos</h4>
+        {Array.isArray(detalles) && detalles.length ? (
+          <table className="factura-detalle-table">
+            <thead>
+              <tr>
+                <th>Descripción</th>
+                <th>Tipo</th>
+                <th>Monto</th>
+              </tr>
+            </thead>
+            <tbody>
+              {detalles.map((detalle) => (
+                <tr key={detalle.id}>
+                  <td>{detalle.descripcion}</td>
+                  <td>{detalle.tipo}</td>
+                  <td>{formatCurrency(detalle.monto)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p className="factura-detalle-empty">No hay conceptos registrados.</p>
+        )}
+      </div>
+
+      <div className="factura-detalle-section">
+        <h4>Pagos registrados</h4>
+        {Array.isArray(pagos) && pagos.length ? (
+          <table className="factura-detalle-table">
+            <thead>
+              <tr>
+                <th>Método</th>
+                <th>Monto</th>
+                <th>Estado</th>
+                <th>Fecha</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pagos.map((pago) => (
+                <tr key={pago.id}>
+                  <td>{pago.metodo}</td>
+                  <td>{formatCurrency(pago.monto_pagado)}</td>
+                  <td>{pago.estado}</td>
+                  <td>{formatDate(pago.fecha_pago)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p className="factura-detalle-empty">
+            No se registran pagos asociados a esta factura.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const PagoManualForm = ({ factura, onSubmit, onCancel, loading }) => {
+  const [formValues, setFormValues] = useState(() => ({
+    monto_pagado: factura?.monto ? String(factura.monto) : "",
+    metodo: "EFECTIVO",
+    referencia: "",
+    fecha_pago: "",
+  }));
+
+  const periodoLabel = factura?.periodo || "seleccionado";
+
+  useEffect(() => {
+    setFormValues({
+      monto_pagado: factura?.monto ? String(factura.monto) : "",
+      metodo: "EFECTIVO",
+      referencia: "",
+      fecha_pago: "",
+    });
+  }, [factura]);
+
+  const handleChange = (event) => {
+    const { name, value } = event.target;
+    setFormValues((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = (event) => {
+    event.preventDefault();
+    onSubmit(formValues);
+  };
+
+  const disableSubmit = !formValues.monto_pagado || Number(formValues.monto_pagado) <= 0;
+
+  return (
+    <form className="finanzas-form" onSubmit={handleSubmit}>
+      <p className="pago-manual-resumen">
+        Registrar pago manual para la factura del periodo <strong>{periodoLabel}</strong>.
+      </p>
+
+      <label className="finanzas-field">
+        <span>Monto pagado</span>
+        <input
+          type="number"
+          name="monto_pagado"
+          min="0"
+          step="0.01"
+          value={formValues.monto_pagado}
+          onChange={handleChange}
+        />
+      </label>
+
+      <label className="finanzas-field">
+        <span>Método</span>
+        <select name="metodo" value={formValues.metodo} onChange={handleChange}>
+          <option value="EFECTIVO">Efectivo</option>
+          <option value="TRANSFERENCIA">Transferencia</option>
+          <option value="DEPOSITO">Depósito</option>
+          <option value="OTRO">Otro</option>
+        </select>
+      </label>
+
+      <label className="finanzas-field">
+        <span>Fecha de pago</span>
+        <input
+          type="date"
+          name="fecha_pago"
+          value={formValues.fecha_pago}
+          onChange={handleChange}
+        />
+      </label>
+
+      <label className="finanzas-field">
+        <span>Referencia u observaciones</span>
+        <input
+          type="text"
+          name="referencia"
+          value={formValues.referencia}
+          onChange={handleChange}
+          placeholder="Caja, recibo interno, etc."
+        />
+      </label>
+
+      <div className="finanzas-modal-actions">
+        <button
+          type="button"
+          className="finanzas-button secondary"
+          onClick={onCancel}
+          disabled={loading}
+        >
+          Cancelar
+        </button>
+        <button
+          type="submit"
+          className="finanzas-button primary"
+          disabled={disableSubmit || loading}
+        >
+          {loading ? "Guardando..." : "Registrar pago"}
+        </button>
+      </div>
+    </form>
+  );
+};
+
 function Finanzas() {
   const [activeTab, setActiveTab] = useState("panel");
   const [summary, setSummary] = useState(null);
@@ -467,6 +729,16 @@ function Finanzas() {
   const [configError, setConfigError] = useState("");
   const [configMessage, setConfigMessage] = useState("");
   const [modalState, setModalState] = useState({ type: null, data: null });
+  const [facturas, setFacturas] = useState([]);
+  const [facturasLoading, setFacturasLoading] = useState(false);
+  const [facturasError, setFacturasError] = useState("");
+  const [facturasMessage, setFacturasMessage] = useState("");
+  const [showFacturaFilters, setShowFacturaFilters] = useState(false);
+  const [facturasFilters, setFacturasFilters] = useState(() => ({
+    ...INITIAL_FACTURA_FILTERS,
+  }));
+  const facturasFiltersRef = useRef({ ...INITIAL_FACTURA_FILTERS });
+  const [actionLoading, setActionLoading] = useState(false);
 
   const currencyFormatter = useMemo(
     () =>
@@ -508,6 +780,30 @@ function Finanzas() {
     [shortNumberFormatter]
   );
 
+  const formatDate = useCallback((value) => {
+    if (!value) {
+      return "-";
+    }
+
+    try {
+      const dateValue = new Date(value);
+      if (Number.isNaN(dateValue.getTime())) {
+        return value;
+      }
+      return dateValue.toLocaleDateString("es-BO");
+    } catch (err) {
+      return value;
+    }
+  }, []);
+
+  const isFacturaPagada = useCallback((estado) => {
+    if (!estado) {
+      return false;
+    }
+    const normalized = String(estado).toUpperCase();
+    return ["PAGADA", "PAGADO", "CANCELADA", "CANCELADO"].includes(normalized);
+  }, []);
+
   const getErrorMessage = useCallback((err, fallbackMessage) => {
     if (err?.response?.data) {
       const data = err.response.data;
@@ -535,6 +831,30 @@ function Finanzas() {
 
   const handleCloseModal = useCallback(() => {
     setModalState({ type: null, data: null });
+  }, []);
+
+  const handleFacturasFilterChange = useCallback((field, value) => {
+    setFacturasFilters((prev) => ({ ...prev, [field]: value }));
+  }, []);
+
+  const handleApplyFacturasFilters = useCallback(
+    (event) => {
+      if (event?.preventDefault) {
+        event.preventDefault();
+      }
+      loadFacturas(facturasFilters);
+    },
+    [facturasFilters, loadFacturas]
+  );
+
+  const handleResetFacturasFilters = useCallback(() => {
+    const resetValues = { ...INITIAL_FACTURA_FILTERS };
+    setFacturasFilters(resetValues);
+    loadFacturas(resetValues);
+  }, [loadFacturas]);
+
+  const handleToggleFacturaFilters = useCallback(() => {
+    setShowFacturaFilters((prev) => !prev);
   }, []);
 
   const loadSummary = useCallback(async () => {
@@ -604,6 +924,135 @@ function Finanzas() {
     [getErrorMessage]
   );
 
+  const loadFacturas = useCallback(
+    async (filtersOverride = null) => {
+      const activeFilters = filtersOverride || facturasFiltersRef.current;
+      setFacturasLoading(true);
+      setFacturasError("");
+
+      try {
+        const params = {};
+        Object.entries(activeFilters || {}).forEach(([key, value]) => {
+          if (value) {
+            params[key] = value;
+          }
+        });
+
+        const response = await API.get("finanzas/admin/facturas/", { params });
+        setFacturas(Array.isArray(response.data) ? response.data : []);
+      } catch (err) {
+        setFacturasError(
+          getErrorMessage(err, "No se pudo cargar el historial de facturas.")
+        );
+      } finally {
+        setFacturasLoading(false);
+      }
+    },
+    [getErrorMessage]
+  );
+
+  const handleViewFactura = useCallback(
+    async (facturaId) => {
+      if (!facturaId) {
+        return;
+      }
+      try {
+        setFacturasError("");
+        const response = await API.get(`finanzas/admin/facturas/${facturaId}/`);
+        handleOpenModal("factura-detalle", response.data);
+      } catch (err) {
+        setFacturasError(
+          getErrorMessage(
+            err,
+            "No se pudo obtener el detalle de la factura seleccionada."
+          )
+        );
+      }
+    },
+    [getErrorMessage, handleOpenModal]
+  );
+
+  const handleDownloadFactura = useCallback(
+    async (factura) => {
+      if (!factura?.id) {
+        return;
+      }
+      try {
+        const response = await API.get(
+          `finanzas/admin/facturas/${factura.id}/pdf/`,
+          { responseType: "blob" }
+        );
+        const blob = new Blob([response.data], { type: "application/pdf" });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        const viviendaCode = (factura.vivienda_codigo || factura.vivienda || "factura")
+          .toString()
+          .replace(/\s+/g, "-");
+        const periodo = (factura.periodo || "detalle").toString().replace(/\s+/g, "-");
+        link.href = url;
+        link.download = `${viviendaCode}-${periodo}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(url);
+      } catch (err) {
+        setFacturasError(
+          getErrorMessage(err, "No se pudo descargar la factura en PDF.")
+        );
+      }
+    },
+    [getErrorMessage]
+  );
+
+  const handleOpenPagoManual = useCallback(
+    (factura) => {
+      if (!factura) {
+        return;
+      }
+      handleOpenModal("factura-pago", { factura });
+    },
+    [handleOpenModal]
+  );
+
+  const handleSubmitPagoManual = useCallback(
+    async (values) => {
+      const facturaActual = modalState?.data?.factura;
+      if (!facturaActual?.id) {
+        return;
+      }
+
+      try {
+        setActionLoading(true);
+        setFacturasError("");
+        await API.post(
+          `finanzas/admin/facturas/${facturaActual.id}/registrar-pago/`,
+          values
+        );
+        setFacturasMessage("Pago manual registrado correctamente.");
+        handleCloseModal();
+        await Promise.all([
+          loadSummary(),
+          loadFacturas(),
+          loadConfigData(false),
+        ]);
+      } catch (err) {
+        setFacturasError(
+          getErrorMessage(err, "No se pudo registrar el pago manual.")
+        );
+      } finally {
+        setActionLoading(false);
+      }
+    },
+    [
+      getErrorMessage,
+      handleCloseModal,
+      loadConfigData,
+      loadFacturas,
+      loadSummary,
+      modalState,
+    ]
+  );
+
   useEffect(() => {
     loadSummary();
   }, [loadSummary]);
@@ -621,6 +1070,24 @@ function Finanzas() {
     const timeout = setTimeout(() => setConfigMessage(""), 4000);
     return () => clearTimeout(timeout);
   }, [configMessage]);
+
+  useEffect(() => {
+    facturasFiltersRef.current = facturasFilters;
+  }, [facturasFilters]);
+
+  useEffect(() => {
+    if (!facturasMessage) {
+      return undefined;
+    }
+    const timeout = setTimeout(() => setFacturasMessage(""), 4000);
+    return () => clearTimeout(timeout);
+  }, [facturasMessage]);
+
+  useEffect(() => {
+    if (activeTab === "facturas") {
+      loadFacturas();
+    }
+  }, [activeTab, loadFacturas]);
 
   const metrics = useMemo(() => {
     const parseNumber = (value) => {
@@ -797,20 +1264,24 @@ function Finanzas() {
 
   const handleGenerateInvoices = useCallback(async () => {
     try {
-      setConfigError("");
+      setFacturasError("");
       const response = await API.post("finanzas/admin/generar-facturas/", {});
       const { periodo, creadas, actualizadas } = response?.data || {};
-      setConfigMessage(
+      setFacturasMessage(
         `Facturas generadas para ${periodo || "el periodo seleccionado"}. ` +
           `${creadas || 0} creadas, ${actualizadas || 0} actualizadas.`
       );
-      await Promise.all([loadSummary(), loadConfigData(false)]);
+      await Promise.all([
+        loadSummary(),
+        loadConfigData(false),
+        loadFacturas(),
+      ]);
     } catch (err) {
-      setConfigError(
+      setFacturasError(
         getErrorMessage(err, "No se pudieron generar las facturas.")
       );
     }
-  }, [getErrorMessage, loadConfigData, loadSummary]);
+  }, [getErrorMessage, loadConfigData, loadFacturas, loadSummary]);
 
   const renderPanel = () => {
     if (loading) {
@@ -1096,14 +1567,6 @@ function Finanzas() {
         )}
 
         <div className="finanzas-config-actions">
-          <button
-            type="button"
-            className="finanzas-button primary"
-            onClick={handleGenerateInvoices}
-          >
-            Generar facturas
-          </button>
-
           {configTab === "expensas" ? (
             <button
               type="button"
@@ -1151,6 +1614,225 @@ function Finanzas() {
           renderExpensasTable()
         ) : (
           renderMultasTable()
+        )}
+      </div>
+    );
+  };
+
+  const renderFacturas = () => {
+    return (
+      <div className="finanzas-facturas">
+        <div className="finanzas-facturas-actions">
+          <button
+            type="button"
+            className="finanzas-button primary"
+            onClick={handleGenerateInvoices}
+          >
+            Generar facturas
+          </button>
+
+          <form
+            className="finanzas-facturas-search"
+            onSubmit={handleApplyFacturasFilters}
+          >
+            <input
+              type="text"
+              placeholder="Buscar por periodo, vivienda o residente"
+              aria-label="Buscar facturas"
+              value={facturasFilters.search}
+              onChange={(event) =>
+                handleFacturasFilterChange("search", event.target.value)
+              }
+            />
+            <button
+              type="submit"
+              className="finanzas-icon-button"
+              aria-label="Buscar facturas"
+            >
+              <span className="icon icon-search" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className={`finanzas-icon-button ${
+                showFacturaFilters ? "active" : ""
+              }`}
+              onClick={handleToggleFacturaFilters}
+              aria-label={
+                showFacturaFilters
+                  ? "Ocultar filtros de facturas"
+                  : "Mostrar filtros de facturas"
+              }
+              aria-expanded={showFacturaFilters}
+            >
+              <span className="icon icon-filter" aria-hidden="true" />
+            </button>
+          </form>
+        </div>
+
+        {showFacturaFilters && (
+          <div className="finanzas-filters-panel">
+            <div className="finanzas-filters-grid">
+              <label className="finanzas-field">
+                <span>Periodo</span>
+                <input
+                  type="text"
+                  name="periodo"
+                  placeholder="2025-09"
+                  value={facturasFilters.periodo}
+                  onChange={(event) =>
+                    handleFacturasFilterChange("periodo", event.target.value)
+                  }
+                />
+              </label>
+              <label className="finanzas-field">
+                <span>Vivienda</span>
+                <input
+                  type="text"
+                  name="vivienda"
+                  placeholder="A01"
+                  value={facturasFilters.vivienda}
+                  onChange={(event) =>
+                    handleFacturasFilterChange("vivienda", event.target.value)
+                  }
+                />
+              </label>
+              <label className="finanzas-field">
+                <span>Residente</span>
+                <input
+                  type="text"
+                  name="residente"
+                  placeholder="Juan"
+                  value={facturasFilters.residente}
+                  onChange={(event) =>
+                    handleFacturasFilterChange("residente", event.target.value)
+                  }
+                />
+              </label>
+              <label className="finanzas-field">
+                <span>Estado</span>
+                <select
+                  name="estado"
+                  value={facturasFilters.estado}
+                  onChange={(event) =>
+                    handleFacturasFilterChange("estado", event.target.value)
+                  }
+                >
+                  {FACTURA_ESTADO_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <div className="finanzas-filters-actions">
+              <button
+                type="button"
+                className="finanzas-button secondary"
+                onClick={handleResetFacturasFilters}
+              >
+                Limpiar
+              </button>
+              <button
+                type="button"
+                className="finanzas-button primary"
+                onClick={() => handleApplyFacturasFilters()}
+              >
+                Aplicar filtros
+              </button>
+            </div>
+          </div>
+        )}
+
+        {(facturasError || facturasMessage) && (
+          <div className="finanzas-facturas-feedback">
+            {facturasError && <p className="error">{facturasError}</p>}
+            {facturasMessage && <p className="success">{facturasMessage}</p>}
+          </div>
+        )}
+
+        {facturasLoading ? (
+          <div className="finanzas-config-loader">
+            <p>Cargando facturas...</p>
+          </div>
+        ) : facturas.length === 0 ? (
+          <div className="finanzas-config-empty">
+            <p>No se encontraron facturas emitidas.</p>
+          </div>
+        ) : (
+          <div className="finanzas-table-wrapper">
+            <table className="finanzas-table">
+              <thead>
+                <tr>
+                  <th>Periodo</th>
+                  <th>Vivienda</th>
+                  <th>Residentes</th>
+                  <th>Monto total</th>
+                  <th>Estado</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {facturas.map((factura) => {
+                  const estado = factura.estado || "";
+                  const estadoClass = isFacturaPagada(estado)
+                    ? "success"
+                    : estado.toUpperCase() === "PENDIENTE"
+                    ? "warning"
+                    : "info";
+                  const residentesLabel =
+                    Array.isArray(factura.residentes) && factura.residentes.length
+                      ? factura.residentes.join(", ")
+                      : "-";
+
+                  return (
+                    <tr key={factura.id}>
+                      <td>{factura.periodo}</td>
+                      <td>
+                        <div className="finanzas-table-main">
+                          {factura.vivienda_codigo || factura.vivienda}
+                        </div>
+                        <div className="finanzas-table-sub">
+                          {factura.vivienda_bloque
+                            ? `Bloque ${factura.vivienda_bloque}`
+                            : ""}
+                        </div>
+                      </td>
+                      <td>{residentesLabel}</td>
+                      <td>{formatCurrency(factura.monto)}</td>
+                      <td>
+                        <span className={`finanzas-pill ${estadoClass}`}>
+                          {estado}
+                        </span>
+                      </td>
+                      <td className="finanzas-table-actions">
+                        <button
+                          type="button"
+                          className="finanzas-button ghost"
+                          onClick={() => handleViewFactura(factura.id)}
+                        >
+                          Detalle
+                        </button>
+                        <button
+                          type="button"
+                          className="finanzas-button accent"
+                          onClick={() => handleOpenPagoManual(factura)}
+                          disabled={isFacturaPagada(estado)}
+                          title={
+                            isFacturaPagada(estado)
+                              ? "La factura ya está pagada"
+                              : "Registrar pago manual"
+                          }
+                        >
+                          Pagar
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     );
@@ -1227,18 +1909,46 @@ function Finanzas() {
       );
     }
 
+    if (modalState.type === "factura-detalle") {
+      const detalleData = modalState.data || {};
+      const titulo = detalleData?.factura?.periodo
+        ? `Factura ${detalleData.factura.periodo}`
+        : "Detalle de factura";
+
+      return (
+        <Modal title={titulo} onClose={handleCloseModal}>
+          <FacturaDetalleView
+            factura={detalleData.factura}
+            detalles={detalleData.detalles}
+            pagos={detalleData.pagos}
+            onDownload={() => handleDownloadFactura(detalleData.factura)}
+            formatCurrency={formatCurrency}
+            formatDate={formatDate}
+          />
+        </Modal>
+      );
+    }
+
+    if (modalState.type === "factura-pago") {
+      const factura = modalState.data?.factura;
+      const titulo = factura?.periodo
+        ? `Registrar pago - ${factura.periodo}`
+        : "Registrar pago manual";
+
+      return (
+        <Modal title={titulo} onClose={handleCloseModal}>
+          <PagoManualForm
+            factura={factura}
+            onSubmit={handleSubmitPagoManual}
+            onCancel={handleCloseModal}
+            loading={actionLoading}
+          />
+        </Modal>
+      );
+    }
+
     return null;
   };
-
-  const renderPlaceholder = (label) => (
-    <div className="finanzas-placeholder">
-      <h3>{label}</h3>
-      <p>
-        Estamos preparando las herramientas para gestionar este módulo. Mientras
-        tanto puedes revisar el panel principal.
-      </p>
-    </div>
-  );
 
   return (
     <section className="finanzas-container">
@@ -1267,7 +1977,7 @@ function Finanzas() {
           ? renderPanel()
           : activeTab === "configuracion"
           ? renderConfiguracion()
-          : renderPlaceholder("Facturas")}
+          : renderFacturas()}
       </div>
 
       {renderModal()}
