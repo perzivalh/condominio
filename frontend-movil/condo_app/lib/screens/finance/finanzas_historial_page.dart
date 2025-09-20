@@ -191,7 +191,9 @@ class _InvoiceItem extends StatelessWidget {
                     fontWeight: FontWeight.w600,
                     color: _estadoLabel == 'PAGADA'
                         ? Colors.green.shade600
-                        : AppColors.secondaryText,
+                        : _estadoLabel == 'REVISION'
+                            ? Colors.orangeAccent
+                            : AppColors.secondaryText,
                   ),
                 ),
                 const SizedBox(width: 4),

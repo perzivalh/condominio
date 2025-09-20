@@ -202,6 +202,174 @@ class Pago(models.Model):
     comprobante_url = models.CharField(max_length=200, null=True, blank=True)
     estado = models.CharField(max_length=20, default="PENDIENTE")
     referencia_externa = models.CharField(max_length=100, null=True, blank=True)
+    registrado_por = models.ForeignKey(
+        Usuario,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="pagos_registrados",
+    )
+    comentario = models.TextField(blank=True)
 
     class Meta:
         db_table = "pago"
+
+
+class FinanzasCodigoQR(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    imagen = models.FileField(upload_to="finanzas/qr/")
+    descripcion = models.CharField(max_length=140, blank=True)
+    actualizado_por = models.ForeignKey(
+        Usuario, on_delete=models.SET_NULL, null=True, blank=True, related_name="qr_actualizados"
+    )
+    creado_en = models.DateTimeField(auto_now_add=True)
+    actualizado_en = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "finanzas_codigo_qr"
+
+
+class NotificacionDirecta(models.Model):
+    ESTADO_ENVIADA = "ENVIADA"
+    ESTADO_LEIDA = "LEIDA"
+    ESTADO_CHOICES = [
+        (ESTADO_ENVIADA, "Enviada"),
+        (ESTADO_LEIDA, "Leída"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    residente = models.ForeignKey(Residente, on_delete=models.CASCADE, related_name="notificaciones")
+    titulo = models.CharField(max_length=120)
+    mensaje = models.TextField()
+    estado = models.CharField(max_length=12, choices=ESTADO_CHOICES, default=ESTADO_ENVIADA)
+    creado_en = models.DateTimeField(auto_now_add=True)
+    actualizado_en = models.DateTimeField(auto_now=True)
+    enviado_por = models.ForeignKey(
+        Usuario, on_delete=models.SET_NULL, null=True, blank=True, related_name="notificaciones_enviadas"
+    )
+    factura = models.ForeignKey(
+        Factura, on_delete=models.SET_NULL, null=True, blank=True, related_name="notificaciones"
+    )
+    pago = models.ForeignKey(
+        Pago, on_delete=models.SET_NULL, null=True, blank=True, related_name="notificaciones"
+    )
+
+    class Meta:
+        db_table = "notificacion_directa"
+        ordering = ("-creado_en",)
+
+class ExpensaConfig(models.Model):
+    PERIODICIDAD_MENSUAL = "MENSUAL"
+    PERIODICIDAD_TRIMESTRAL = "TRIMESTRAL"
+    PERIODICIDAD_ANUAL = "ANUAL"
+    PERIODICIDAD_CHOICES = [
+        (PERIODICIDAD_MENSUAL, "Mensual"),
+        (PERIODICIDAD_TRIMESTRAL, "Trimestral"),
+        (PERIODICIDAD_ANUAL, "Anual"),
+    ]
+
+    ESTADO_ACTIVO = "ACTIVO"
+    ESTADO_INACTIVO = "INACTIVO"
+    ESTADO_CHOICES = [
+        (ESTADO_ACTIVO, "Activo"),
+        (ESTADO_INACTIVO, "Inactivo"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    condominio = models.ForeignKey(
+        Condominio, on_delete=models.CASCADE, related_name="configuraciones_expensa"
+    )
+    bloque = models.CharField(max_length=20)
+    monto = models.DecimalField(max_digits=10, decimal_places=2)
+    periodicidad = models.CharField(
+        max_length=12, choices=PERIODICIDAD_CHOICES, default=PERIODICIDAD_MENSUAL
+    )
+    estado = models.CharField(
+        max_length=10, choices=ESTADO_CHOICES, default=ESTADO_ACTIVO
+    )
+    creado_en = models.DateTimeField(auto_now_add=True)
+    actualizado_en = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "expensa_config"
+        unique_together = ("condominio", "bloque")
+        ordering = ("bloque",)
+
+    def __str__(self):
+        return f"{self.condominio.nombre} - Bloque {self.bloque}"
+
+    @property
+    def esta_activa(self):
+        return self.estado == self.ESTADO_ACTIVO
+
+
+class MultaConfig(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    nombre = models.CharField(max_length=80, unique=True)
+    descripcion = models.TextField(blank=True)
+    monto = models.DecimalField(max_digits=10, decimal_places=2)
+    activo = models.BooleanField(default=True)
+    creado_en = models.DateTimeField(auto_now_add=True)
+    actualizado_en = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "multa_config"
+        ordering = ("nombre",)
+
+    def __str__(self):
+        return self.nombre
+
+
+class MultaAplicada(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    vivienda = models.ForeignKey(
+        Vivienda, on_delete=models.CASCADE, related_name="multas_aplicadas"
+    )
+    multa_config = models.ForeignKey(
+        MultaConfig, on_delete=models.CASCADE, related_name="multas_aplicadas"
+    )
+    descripcion = models.TextField(blank=True)
+    monto = models.DecimalField(max_digits=10, decimal_places=2)
+    fecha_aplicacion = models.DateField(auto_now_add=True)
+    factura = models.ForeignKey(
+        "Factura", on_delete=models.SET_NULL, null=True, blank=True, related_name="multas"
+    )
+    periodo_facturado = models.CharField(max_length=7, null=True, blank=True)
+
+    class Meta:
+        db_table = "multa_aplicada"
+        ordering = ("-fecha_aplicacion",)
+
+    def __str__(self):
+        return f"{self.multa_config.nombre} - {self.vivienda.codigo_unidad}"
+
+
+class FacturaDetalle(models.Model):
+    TIPO_EXPENSA = "EXPENSA"
+    TIPO_MULTA = "MULTA"
+    TIPO_CHOICES = [
+        (TIPO_EXPENSA, "Expensa"),
+        (TIPO_MULTA, "Multa"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    factura = models.ForeignKey(
+        Factura, on_delete=models.CASCADE, related_name="detalles"
+    )
+    descripcion = models.CharField(max_length=160)
+    tipo = models.CharField(max_length=10, choices=TIPO_CHOICES)
+    monto = models.DecimalField(max_digits=10, decimal_places=2)
+    multa_aplicada = models.ForeignKey(
+        MultaAplicada,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="detalles_factura",
+    )
+
+    class Meta:
+        db_table = "factura_detalle"
+        ordering = ("factura", "tipo")
+
+    def __str__(self):
+        return f"{self.factura.periodo} - {self.descripcion}"

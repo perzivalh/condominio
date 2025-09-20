@@ -1,16 +1,25 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import GroupsOutlinedIcon from "@mui/icons-material/GroupsOutlined";
+import DirectionsCarOutlinedIcon from "@mui/icons-material/DirectionsCarOutlined";
+import HomeOutlinedIcon from "@mui/icons-material/HomeOutlined";
+import KeyOutlinedIcon from "@mui/icons-material/KeyOutlined";
+import MailOutlineOutlinedIcon from "@mui/icons-material/MailOutlineOutlined";
+import PaymentsOutlinedIcon from "@mui/icons-material/PaymentsOutlined";
+import PersonOutlineOutlinedIcon from "@mui/icons-material/PersonOutlineOutlined";
+import SecurityOutlinedIcon from "@mui/icons-material/SecurityOutlined";
+import HolidayVillageOutlinedIcon from "@mui/icons-material/HolidayVillageOutlined";
 
 const MODULES = [
-  { id: "usuarios", label: "Usuarios", roles: ["ADM"], icon: "U" },
-  { id: "viviendas", label: "Viviendas", roles: ["ADM", "GUA"], icon: "H" },
-  { id: "residentes", label: "Residentes", roles: ["ADM", "GUA"], icon: "R" },
-  { id: "vehiculos", label: "Vehiculos", roles: ["ADM", "GUA"], icon: "C" },
-  { id: "avisos", label: "Avisos", roles: ["ADM"], icon: "A" },
-  { id: "areas", label: "Areas", roles: ["ADM"], icon: "L" },
-  { id: "visitas-accesos", label: "Visitas Accesos", roles: ["ADM", "GUA"], icon: "V" },
-  { id: "finanzas", label: "Finanzas", roles: ["ADM"], icon: "F" },
-  { id: "seguridad", label: "Seguridad", roles: ["ADM", "GUA"], icon: "S" },
+  { id: "usuarios", label: "Usuarios", roles: ["ADM"], Icon: PersonOutlineOutlinedIcon },
+  { id: "viviendas", label: "Viviendas", roles: ["ADM", "GUA"], Icon: HomeOutlinedIcon },
+  { id: "residentes", label: "Residentes", roles: ["ADM", "GUA"], Icon: KeyOutlinedIcon },
+  { id: "vehiculos", label: "Vehiculos", roles: ["ADM", "GUA"], Icon: DirectionsCarOutlinedIcon },
+  { id: "avisos", label: "Avisos", roles: ["ADM"], Icon: MailOutlineOutlinedIcon },
+  { id: "areas", label: "Areas", roles: ["ADM"], Icon: HolidayVillageOutlinedIcon },
+  { id: "visitas-accesos", label: "Visitas Accesos", roles: ["ADM", "GUA"], Icon: GroupsOutlinedIcon },
+  { id: "finanzas", label: "Finanzas", roles: ["ADM"], Icon: PaymentsOutlinedIcon },
+  { id: "seguridad", label: "Seguridad", roles: ["ADM", "GUA"], Icon: SecurityOutlinedIcon },
 ];
 
 function Dashboard({ user, onLogout }) {
@@ -200,7 +209,13 @@ function Dashboard({ user, onLogout }) {
                   letterSpacing: collapsed ? "1px" : "normal",
                 }}
               >
-                <span aria-hidden="true">{module.icon}</span>
+                <module.Icon
+                  fontSize="small"
+                  aria-hidden="true"
+                  style={{
+                    fontSize: collapsed ? "22px" : "20px",
+                  }}
+                />
                 {!collapsed && <span>{module.label}</span>}
               </button>
             );

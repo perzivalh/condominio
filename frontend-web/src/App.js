@@ -13,7 +13,6 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import UsuariosMenu from "./pages/UsuariosMenu";
 import UsuariosList from "./pages/UsuariosList";
-import UsuarioForm from "./pages/UsuarioForm";
 import Areas from "./pages/Areas";
 import Finanzas from "./pages/Finanzas";
 import Seguridad from "./pages/Seguridad";
@@ -94,8 +93,6 @@ function App() {
         >
           <Route path="usuarios" element={<UsuariosMenu />} />
           <Route path="usuarios/:rol" element={<UsuariosList />} />
-          <Route path="usuarios/:rol/crear" element={<UsuarioForm />} />
-          <Route path="usuarios/:rol/editar/:id" element={<UsuarioForm />} />
 
           <Route path="viviendas" element={<Viviendas />} />
           <Route path="residentes" element={<Residentes />} />
