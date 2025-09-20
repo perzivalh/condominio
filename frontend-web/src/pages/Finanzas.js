@@ -825,6 +825,33 @@ function Finanzas() {
     return fallbackMessage;
   }, []);
 
+  const loadFacturas = useCallback(
+    async (filtersOverride = null) => {
+      const activeFilters = filtersOverride || facturasFiltersRef.current;
+      setFacturasLoading(true);
+      setFacturasError("");
+
+      try {
+        const params = {};
+        Object.entries(activeFilters || {}).forEach(([key, value]) => {
+          if (value) {
+            params[key] = value;
+          }
+        });
+
+        const response = await API.get("finanzas/admin/facturas/", { params });
+        setFacturas(Array.isArray(response.data) ? response.data : []);
+      } catch (err) {
+        setFacturasError(
+          getErrorMessage(err, "No se pudo cargar el historial de facturas.")
+        );
+      } finally {
+        setFacturasLoading(false);
+      }
+    },
+    [getErrorMessage]
+  );
+
   const handleOpenModal = useCallback((type, data = null) => {
     setModalState({ type, data });
   }, []);
@@ -919,33 +946,6 @@ function Finanzas() {
         );
       } finally {
         setConfigLoading(false);
-      }
-    },
-    [getErrorMessage]
-  );
-
-  const loadFacturas = useCallback(
-    async (filtersOverride = null) => {
-      const activeFilters = filtersOverride || facturasFiltersRef.current;
-      setFacturasLoading(true);
-      setFacturasError("");
-
-      try {
-        const params = {};
-        Object.entries(activeFilters || {}).forEach(([key, value]) => {
-          if (value) {
-            params[key] = value;
-          }
-        });
-
-        const response = await API.get("finanzas/admin/facturas/", { params });
-        setFacturas(Array.isArray(response.data) ? response.data : []);
-      } catch (err) {
-        setFacturasError(
-          getErrorMessage(err, "No se pudo cargar el historial de facturas.")
-        );
-      } finally {
-        setFacturasLoading(false);
       }
     },
     [getErrorMessage]
