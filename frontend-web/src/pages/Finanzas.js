@@ -1782,6 +1782,9 @@ function Finanzas() {
               </span>
             </div>
             <div className="finanzas-progress-details">
+              <span className="finanzas-progress-percentage">
+                {metrics.porcentajeFacturas.toFixed(0)}% de facturas pagadas
+              </span>
               <span>
                 {metrics.facturasPagadas} de {metrics.facturasTotales} facturas
                 pagadas

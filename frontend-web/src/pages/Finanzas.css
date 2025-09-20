@@ -213,8 +213,19 @@
 }
 
 .finanzas-progress-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   font-size: 0.95rem;
   color: #4a5568;
+  text-align: center;
+  align-items: center;
+}
+
+.finanzas-progress-percentage {
+  font-weight: 700;
+  color: #1f2937;
+  font-size: 1.05rem;
 }
 
 .finanzas-configuracion {

@@ -4,7 +4,7 @@ from decimal import Decimal
 from django.contrib.auth.models import User
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.utils import timezone
-from rest_framework.test import APITestCase
+from rest_framework.test import APIClient, APITestCase
 
 from ..models import (
     Condominio,
@@ -160,6 +160,9 @@ class FinanzasAdminInvoiceTests(APITestCase):
         self.residente_a.usuario = self.usuario_residente_a
         self.residente_a.save()
 
+        self.resident_client = APIClient()
+        self.resident_client.force_authenticate(user=residente_user)
+
         multa_config = MultaConfig.objects.create(
             nombre="Parqueo", descripcion="Mal uso", monto="50.00"
         )
@@ -247,6 +250,19 @@ class FinanzasAdminInvoiceTests(APITestCase):
         self.assertEqual(pdf_response.status_code, 200)
         self.assertEqual(pdf_response["Content-Type"], "application/pdf")
         self.assertTrue(pdf_response.content.startswith(b"%PDF"))
+
+    def test_residente_puede_descargar_factura_pdf(self):
+        response = self.resident_client.get(
+            f"/api/finanzas/facturas/{self.factura_pendiente.id}/pdf/"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/pdf")
+        self.assertTrue(response.content.startswith(b"%PDF"))
+
+        otra_factura = self.resident_client.get(
+            f"/api/finanzas/facturas/{self.factura_pagada.id}/pdf/"
+        )
+        self.assertEqual(otra_factura.status_code, 404)
 
     def test_registrar_pago_manual(self):
         fecha_pago = (timezone.localdate() + timedelta(days=1)).strftime("%Y-%m-%d")

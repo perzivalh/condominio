@@ -304,7 +304,11 @@ def _generar_facturas_para_periodo(periodo):
     fecha_vencimiento = date(year, month, last_day)
 
     expensas_map = _expensa_config_por_bloque()
-    viviendas = Vivienda.objects.select_related("condominio").filter(estado=1)
+    viviendas = (
+        Vivienda.objects.select_related("condominio")
+        .filter(estado=1, residentevivienda__fecha_hasta__isnull=True)
+        .distinct()
+    )
 
     resumen = {"creadas": 0, "actualizadas": 0, "sin_cambios": 0}
 
@@ -815,6 +819,38 @@ def detalle_factura(request, pk):
         "pagos": PagoSerializer(pagos, many=True).data,
     }
     return Response(data)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def factura_residente_pdf(request, pk):
+    try:
+        vivienda = _obtener_vivienda_actual(request.user)
+    except ValueError as error:
+        return Response({"detail": str(error)}, status=400)
+
+    factura = get_object_or_404(
+        Factura.objects.select_related("vivienda", "vivienda__condominio")
+        .prefetch_related(
+            _prefetch_residentes_activos(),
+            Prefetch(
+                "detalles",
+                queryset=FacturaDetalle.objects.order_by("tipo", "descripcion"),
+            ),
+        ),
+        pk=pk,
+        vivienda=vivienda,
+    )
+
+    pdf_bytes = _build_factura_pdf(factura)
+    filename = (
+        f"factura-{factura.vivienda.codigo_unidad}-{factura.periodo}".replace(" ", "_")
+        + ".pdf"
+    )
+
+    response = HttpResponse(pdf_bytes, content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
 
 
 @api_view(["POST"])

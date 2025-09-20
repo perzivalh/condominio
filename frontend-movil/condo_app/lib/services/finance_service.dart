@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
@@ -135,5 +136,26 @@ class FinanceService {
     if (response.statusCode != 202) {
       throw Exception('No se pudo registrar el pago en revisión');
     }
+  }
+
+  Future<Uint8List> downloadInvoicePdf(String facturaId) async {
+    final token = await _readAccessToken();
+    if (token == null) {
+      throw Exception('Token no disponible');
+    }
+
+    final response = await _client.get(
+      _buildUri('finanzas/facturas/$facturaId/pdf/'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Accept': 'application/pdf',
+      },
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('No se pudo descargar la factura.');
+    }
+
+    return response.bodyBytes;
   }
 }
