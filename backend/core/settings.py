@@ -134,19 +134,44 @@ CORS_ALLOWED_ORIGINS = [
 # Email
 EMAIL_BACKEND = os.environ.get("EMAIL_BACKEND")
 
+EMAIL_HOST_USER = (
+    os.environ.get("EMAIL_HOST_USER")
+    or os.environ.get("GMAIL_USER", "")
+)
+
+_raw_password = (
+    os.environ.get("EMAIL_HOST_PASSWORD")
+    or os.environ.get("GMAIL_APP_PASSWORD")
+    or ""
+)
+EMAIL_HOST_PASSWORD = _raw_password.replace(" ", "")
+
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "")
+if not EMAIL_HOST and EMAIL_HOST_USER.endswith("@gmail.com"):
+    EMAIL_HOST = "smtp.gmail.com"
+
+EMAIL_USE_SSL = os.environ.get("EMAIL_USE_SSL", "False") == "True"
+EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "True") == "True"
+
+if EMAIL_USE_SSL:
+    EMAIL_USE_TLS = False
+
+default_port = 465 if EMAIL_USE_SSL else 587
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", default_port))
+
+EMAIL_TIMEOUT = int(os.environ.get("EMAIL_TIMEOUT", 20))
+
+DEFAULT_FROM_EMAIL = (
+    os.environ.get("DEFAULT_FROM_EMAIL")
+    or EMAIL_HOST_USER
+    or "no-reply@condominio.local"
+)
+
 if not EMAIL_BACKEND:
-    if os.environ.get("EMAIL_HOST") or os.environ.get("EMAIL_HOST_USER"):
+    if EMAIL_HOST and (EMAIL_HOST_USER or EMAIL_HOST_PASSWORD):
         EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
     else:
         EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
-
-EMAIL_HOST = os.environ.get("EMAIL_HOST", "")
-EMAIL_PORT = int(os.environ.get("EMAIL_PORT", 587))
-EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
-EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
-EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "True") == "True"
-EMAIL_USE_SSL = os.environ.get("EMAIL_USE_SSL", "False") == "True"
-DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "no-reply@condominio.local")
 
 # Template opcional para link directo de reseteo
 PASSWORD_RESET_URL_TEMPLATE = os.environ.get("PASSWORD_RESET_URL_TEMPLATE", "")
