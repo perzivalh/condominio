@@ -504,6 +504,7 @@
   border-radius: 24px;
   background: linear-gradient(145deg, #f7faff, #d5dbe8);
   box-shadow: -10px -10px 20px #ffffff, 10px 10px 20px rgba(163, 177, 198, 0.45);
+  overflow-x: auto;
 }
 
 .factura-detalle-section h4 {
@@ -544,9 +545,12 @@
 
 .finanzas-table-wrapper {
   overflow-x: auto;
+  overflow-y: auto;
+  max-height: min(460px, 60vh);
   border-radius: 28px;
   background: linear-gradient(145deg, #f7faff, #d5dbe8);
   box-shadow: -12px -12px 24px #ffffff, 12px 12px 24px rgba(163, 177, 198, 0.5);
+  overscroll-behavior: contain;
 }
 
 .finanzas-table {
@@ -648,11 +652,14 @@
 }
 
 .finanzas-modal {
-  width: min(520px, 100%);
+  width: min(520px, calc(100% - 32px));
+  max-height: clamp(320px, calc(100vh - 48px), 720px);
   background: linear-gradient(145deg, #f7faff, #d5dbe8);
   border-radius: 28px;
   box-shadow: -16px -16px 32px #ffffff, 16px 16px 32px rgba(163, 177, 198, 0.55);
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .finanzas-modal-header {
@@ -681,6 +688,10 @@
   display: flex;
   flex-direction: column;
   gap: 18px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  max-height: clamp(240px, calc(100vh - 124px), 600px);
 }
 
 .finanzas-form {
