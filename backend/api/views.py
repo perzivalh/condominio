@@ -116,34 +116,63 @@ class CondominioViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
 
+# --- HELPERS ---
+def _usuario_unico_por_correo(correo: str):
+    correo_normalizado = correo.strip()
+    queryset = (
+        Usuario.objects.filter(user__email__iexact=correo_normalizado)
+        .select_related("user")
+        .order_by("id")
+    )
+    usuarios = list(queryset[:2])
+
+    if not usuarios:
+        return None, Response({"error": "Usuario no encontrado"}, status=status.HTTP_404_NOT_FOUND)
+
+    if len(usuarios) > 1:
+        return None, Response(
+            {
+                "error": (
+                    "Existen múltiples cuentas con este correo. "
+                    "Comunícate con el administrador para continuar."
+                )
+            },
+            status=status.HTTP_409_CONFLICT,
+        )
+
+    return usuarios[0], None
+
+
 # --- RECUPERAR PASSWORD ---
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def recuperar_password(request):
     correo = request.data.get("correo") or request.data.get("email")
-    if not correo:
+    if correo is None:
         return Response({"error": "Debe ingresar un correo"}, status=status.HTTP_400_BAD_REQUEST)
 
-    try:
-        usuario = Usuario.objects.get(user__email=correo)
+    correo_normalizado = str(correo).strip()
+    if not correo_normalizado:
+        return Response({"error": "Debe ingresar un correo"}, status=status.HTTP_400_BAD_REQUEST)
 
-        token = str(uuid.uuid4())[:8]
-        expiracion = timezone.now() + datetime.timedelta(minutes=15)
+    usuario, error_response = _usuario_unico_por_correo(correo_normalizado)
+    if error_response:
+        return error_response
 
-        TokenRecuperacion.objects.create(
-            usuario=usuario,
-            codigo=token,
-            expiracion=expiracion,
-            usado=False
-        )
+    token = str(uuid.uuid4())[:8]
+    expiracion = timezone.now() + datetime.timedelta(minutes=15)
 
-        return Response(
-            {"mensaje": f"Se envió un token de recuperación a {correo} (simulado)"},
-            status=status.HTTP_200_OK
-        )
+    TokenRecuperacion.objects.create(
+        usuario=usuario,
+        codigo=token,
+        expiracion=expiracion,
+        usado=False
+    )
 
-    except Usuario.DoesNotExist:
-        return Response({"error": "Usuario no encontrado"}, status=status.HTTP_404_NOT_FOUND)
+    return Response(
+        {"mensaje": f"Se envió un token de recuperación a {correo_normalizado} (simulado)"},
+        status=status.HTTP_200_OK
+    )
 
 
 # --- RESET PASSWORD ---
@@ -154,13 +183,16 @@ def reset_password(request):
     codigo = request.data.get("token")
     nueva_pass = request.data.get("nueva_password")
 
-    if not correo or not codigo or not nueva_pass:
+    if correo is None or not codigo or not nueva_pass:
         return Response({"error": "Datos incompletos"}, status=status.HTTP_400_BAD_REQUEST)
 
-    try:
-        usuario = Usuario.objects.get(user__email=correo)
-    except Usuario.DoesNotExist:
-        return Response({"error": "Usuario no encontrado"}, status=status.HTTP_404_NOT_FOUND)
+    correo_normalizado = str(correo).strip()
+    if not correo_normalizado:
+        return Response({"error": "Datos incompletos"}, status=status.HTTP_400_BAD_REQUEST)
+
+    usuario, error_response = _usuario_unico_por_correo(correo_normalizado)
+    if error_response:
+        return error_response
 
     token_obj = TokenRecuperacion.objects.filter(
         usuario=usuario, codigo=codigo, usado=False
