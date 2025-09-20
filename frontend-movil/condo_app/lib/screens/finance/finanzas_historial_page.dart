@@ -1,4 +1,8 @@
-﻿import 'package:flutter/material.dart';
+import 'dart:io';
+
+import 'package:flutter/material.dart';
+import 'package:open_filex/open_filex.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../../core/app_colors.dart';
 import '../../models/finance_models.dart';
@@ -31,6 +35,42 @@ class _FinanzasHistorialPageState extends State<FinanzasHistorialPage> {
     setState(() {
       _future = _service.fetchInvoices();
     });
+  }
+
+  Future<void> _openInvoicePdf(FinanceInvoice invoice) async {
+    final navigator = Navigator.of(context, rootNavigator: true);
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      final bytes = await _service.downloadInvoicePdf(invoice.id);
+      final directory = await getTemporaryDirectory();
+      final sanitizedPeriodo = invoice.periodo.replaceAll(RegExp(r'[^0-9A-Za-z_-]'), '-');
+      final fileName = 'factura-'
+          '${sanitizedPeriodo.isEmpty ? 'detalle' : sanitizedPeriodo}-${invoice.id.substring(0, 8)}.pdf';
+      final file = File('${directory.path}/$fileName');
+      await file.writeAsBytes(bytes, flush: true);
+
+      if (mounted) {
+        await navigator.maybePop();
+        final result = await OpenFilex.open(file.path);
+        if (mounted && result.type != ResultType.done) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('No se pudo abrir la factura: ${result.message}')),
+          );
+        }
+      }
+    } catch (error) {
+      if (mounted) {
+        await navigator.maybePop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No se pudo descargar la factura: $error')),
+        );
+      }
+    }
   }
 
   @override
@@ -129,6 +169,7 @@ class _FinanzasHistorialPageState extends State<FinanzasHistorialPage> {
                               }
                             });
                           },
+                          onViewPdf: () => _openInvoicePdf(invoice),
                         );
                       },
                     );
@@ -154,11 +195,13 @@ class _InvoiceItem extends StatelessWidget {
     required this.invoice,
     required this.expanded,
     required this.onToggle,
+    required this.onViewPdf,
   });
 
   final FinanceInvoice invoice;
   final bool expanded;
   final VoidCallback onToggle;
+  final VoidCallback onViewPdf;
 
   String get _estadoLabel => invoice.estado.toUpperCase();
 
@@ -191,7 +234,9 @@ class _InvoiceItem extends StatelessWidget {
                     fontWeight: FontWeight.w600,
                     color: _estadoLabel == 'PAGADA'
                         ? Colors.green.shade600
-                        : AppColors.secondaryText,
+                        : _estadoLabel == 'REVISION'
+                            ? Colors.orangeAccent
+                            : AppColors.secondaryText,
                   ),
                 ),
                 const SizedBox(width: 4),
@@ -209,11 +254,7 @@ class _InvoiceItem extends StatelessWidget {
                 _infoLine('Fecha pago', _formatDate(invoice.fechaPago)),
               const SizedBox(height: 8),
               GestureDetector(
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Visualización de factura pendiente.')),
-                  );
-                },
+                onTap: onViewPdf,
                 child: const Text(
                   'Ver factura',
                   style: TextStyle(

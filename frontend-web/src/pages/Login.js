@@ -1,10 +1,14 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import VisibilityOffOutlinedIcon from "@mui/icons-material/VisibilityOffOutlined";
+import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import API from "../api/axiosConfig";
+import "./Login.css";
 
 function Login({ onLogin }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();
 
@@ -27,34 +31,65 @@ function Login({ onLogin }) {
     } catch (err) {
       localStorage.removeItem("access");
       localStorage.removeItem("refresh");
-      setError("Credenciales invalidas");
+      setError("Credenciales inválidas");
     }
   };
 
   return (
-    <div>
-      <h2>Login Administrador</h2>
-      <form onSubmit={handleLogin}>
-        <input
-          type="text"
-          placeholder="Usuario"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          required
-        />
-        <input
-          type="password"
-          placeholder="Contrasena"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
-        <button type="submit">Ingresar</button>
-        <p>
-          <a href="/forgot-password">Olvidaste tu contrasena?</a>
-        </p>
-      </form>
-      {error && <p style={{ color: "red" }}>{error}</p>}
+    <div className="login-page">
+      <div className="login-card">
+        <div className="login-card__header">
+          <h1>Condominio</h1>
+          <p>Acceso administrativo</p>
+        </div>
+        <form className="login-form" onSubmit={handleLogin}>
+          <div className="login-field">
+            <label htmlFor="username">Usuario</label>
+            <input
+              id="username"
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="Ingresa tu usuario"
+              autoComplete="username"
+              required
+            />
+          </div>
+          <div className="login-field">
+            <label htmlFor="password">Contraseña</label>
+            <div className="password-wrapper">
+              <input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Ingresa tu contraseña"
+                autoComplete="current-password"
+                required
+              />
+              <button
+                type="button"
+                className="password-toggle"
+                onClick={() => setShowPassword((prev) => !prev)}
+                aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+              >
+                {showPassword ? (
+                  <VisibilityOffOutlinedIcon fontSize="small" />
+                ) : (
+                  <VisibilityOutlinedIcon fontSize="small" />
+                )}
+              </button>
+            </div>
+          </div>
+          {error && <p className="login-error">{error}</p>}
+          <button type="submit" className="login-submit">
+            Ingresar
+          </button>
+        </form>
+        <div className="login-footer">
+          <a href="/forgot-password">¿Olvidaste tu contraseña?</a>
+        </div>
+      </div>
     </div>
   );
 }

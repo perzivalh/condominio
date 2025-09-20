@@ -47,6 +47,8 @@ class FinancePayment {
     required this.estado,
     this.comprobanteUrl,
     this.referenciaExterna,
+    this.registradoPor,
+    this.comentario,
   });
 
   final String id;
@@ -56,6 +58,8 @@ class FinancePayment {
   final String estado;
   final String? comprobanteUrl;
   final String? referenciaExterna;
+  final String? registradoPor;
+  final String? comentario;
 
   factory FinancePayment.fromJson(Map<String, dynamic> json) {
     return FinancePayment(
@@ -66,6 +70,36 @@ class FinancePayment {
       estado: json['estado']?.toString() ?? '',
       comprobanteUrl: json['comprobante_url']?.toString(),
       referenciaExterna: json['referencia_externa']?.toString(),
+      registradoPor: json['registrado_por']?.toString(),
+      comentario: json['comentario']?.toString(),
+    );
+  }
+}
+
+class FinanceQrConfig {
+  FinanceQrConfig({
+    required this.id,
+    required this.url,
+    this.descripcion,
+    this.actualizadoEn,
+    this.actualizadoPor,
+  });
+
+  final String id;
+  final String url;
+  final String? descripcion;
+  final DateTime? actualizadoEn;
+  final String? actualizadoPor;
+
+  factory FinanceQrConfig.fromJson(Map<String, dynamic> json) {
+    return FinanceQrConfig(
+      id: json['id'].toString(),
+      url: json['url']?.toString() ?? '',
+      descripcion: json['descripcion']?.toString(),
+      actualizadoEn: json['actualizado_en'] == null
+          ? null
+          : DateTime.tryParse(json['actualizado_en'].toString()),
+      actualizadoPor: json['actualizado_por']?.toString(),
     );
   }
 }

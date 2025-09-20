@@ -1,10 +1,13 @@
 ﻿import 'package:flutter/material.dart';
 
 import '../core/app_colors.dart';
+import '../models/notification_model.dart';
 import '../models/resident_profile.dart';
+import '../services/notification_service.dart';
 import '../widgets/neumorphic.dart';
 import '../widgets/resident_bottom_nav.dart';
 import 'finance/finanzas_page.dart';
+import 'notifications/resident_notifications_page.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key, required this.session});
@@ -17,6 +20,8 @@ class DashboardPage extends StatefulWidget {
 
 class _DashboardPageState extends State<DashboardPage> {
   int _selectedIndex = 1;
+  final NotificationService _notificationService = NotificationService();
+  bool _hasUnreadNotifications = false;
 
   void _handleModuleTap(String module) {
     if (module == 'Finanzas') {
@@ -37,6 +42,39 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _loadUnreadNotifications();
+  }
+
+  Future<void> _loadUnreadNotifications() async {
+    try {
+      final List<ResidentNotification> notifications =
+          await _notificationService.fetchNotifications();
+      if (!mounted) return;
+      setState(() {
+        _hasUnreadNotifications =
+            notifications.any((notification) => !notification.leida);
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _hasUnreadNotifications = false;
+      });
+    }
+  }
+
+  Future<void> _handleNotificationsTap() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ResidentNotificationsPage(session: widget.session),
+      ),
+    );
+    if (!mounted) return;
+    await _loadUnreadNotifications();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final profile = widget.session.profile;
 
@@ -48,7 +86,11 @@ class _DashboardPageState extends State<DashboardPage> {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 28, 24, 0),
-              child: _HeaderRow(profile: profile),
+              child: _HeaderRow(
+                profile: profile,
+                onNotificationsTap: _handleNotificationsTap,
+                hasUnreadNotifications: _hasUnreadNotifications,
+              ),
             ),
             const SizedBox(height: 24),
             Expanded(
@@ -74,9 +116,15 @@ class _DashboardPageState extends State<DashboardPage> {
 }
 
 class _HeaderRow extends StatelessWidget {
-  const _HeaderRow({required this.profile});
+  const _HeaderRow({
+    required this.profile,
+    required this.onNotificationsTap,
+    required this.hasUnreadNotifications,
+  });
 
   final ResidentProfile profile;
+  final VoidCallback onNotificationsTap;
+  final bool hasUnreadNotifications;
 
   @override
   Widget build(BuildContext context) {
@@ -109,14 +157,51 @@ class _HeaderRow extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 16),
-        NeumorphicSurface(
-          borderRadius: BorderRadius.circular(22),
-          padding: const EdgeInsets.all(14),
-          child: const Icon(
-            Icons.notifications_none_outlined,
-            color: AppColors.primaryText,
-            size: 26,
-          ),
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
+            NeumorphicSurface(
+              borderRadius: BorderRadius.circular(22),
+              padding: EdgeInsets.zero,
+              child: Material(
+                color: Colors.transparent,
+                borderRadius: BorderRadius.circular(22),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(22),
+                  onTap: onNotificationsTap,
+                  child: const SizedBox(
+                    width: 48,
+                    height: 48,
+                    child: Icon(
+                      Icons.notifications_none_outlined,
+                      color: AppColors.primaryText,
+                      size: 26,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            if (hasUnreadNotifications)
+              Positioned(
+                right: 6,
+                top: 6,
+                child: Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: Colors.redAccent.shade400,
+                    shape: BoxShape.circle,
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color.fromRGBO(220, 38, 38, 0.45),
+                        blurRadius: 4,
+                        offset: Offset(0, 1),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
         ),
       ],
     );

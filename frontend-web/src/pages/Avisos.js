@@ -1,97 +1,271 @@
-import React, { useState, useEffect } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import API from "../api/axiosConfig";
+import { useAuth } from "../context/AuthContext";
+import CrudModal from "../components/CrudModal";
+import "./GestionCrud.css";
+
+const initialForm = {
+  titulo: "",
+  contenido: "",
+};
 
 function Avisos() {
+  const { user } = useAuth();
+  const roles = useMemo(() => (Array.isArray(user?.roles) ? user.roles : []), [user]);
+  const canManage = roles.includes("ADM");
+
   const [avisos, setAvisos] = useState([]);
-  const [titulo, setTitulo] = useState("");
-  const [contenido, setContenido] = useState("");
-  const [editId, setEditId] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [modalState, setModalState] = useState({ open: false, mode: "create" });
+  const [formData, setFormData] = useState(initialForm);
+  const [activeId, setActiveId] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
 
-  const cargarAvisos = async () => {
-    const res = await API.get("avisos/");
-    setAvisos(res.data);
-  };
-
-  useEffect(() => {
-    cargarAvisos();
+  const loadAvisos = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await API.get("avisos/");
+      setAvisos(res.data);
+    } catch (err) {
+      console.error("Error al cargar avisos", err);
+      setError("No se pudieron cargar los avisos. Intenta nuevamente más tarde.");
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  // Crear aviso
-  const crearAviso = async (e) => {
-    e.preventDefault();
-    await API.post("avisos/", {
-      titulo,
-      contenido,
-      estado: 1,
-      visibilidad: 0, // 0 = todos
+  useEffect(() => {
+    loadAvisos();
+  }, [loadAvisos]);
+
+  const openCreateModal = () => {
+    if (!canManage) return;
+    setFormData(initialForm);
+    setActiveId(null);
+    setModalState({ open: true, mode: "create" });
+  };
+
+  const openEditModal = (aviso) => {
+    if (!canManage) return;
+    setActiveId(aviso.id);
+    setFormData({
+      titulo: aviso.titulo || "",
+      contenido: aviso.contenido || "",
     });
-    cargarAvisos();
-    setTitulo("");
-    setContenido("");
+    setModalState({ open: true, mode: "edit" });
   };
 
-  // Editar aviso
-  const editarAviso = (a) => {
-    setEditId(a.id);
-    setTitulo(a.titulo);
-    setContenido(a.contenido);
+  const closeModal = () => {
+    setModalState({ open: false, mode: "create" });
+    setFormData(initialForm);
+    setActiveId(null);
+    setIsSubmitting(false);
   };
 
-  const guardarEdicion = async (e) => {
-    e.preventDefault();
-    await API.put(`avisos/${editId}/`, {
-      titulo,
-      contenido,
-      estado: 1,
-      visibilidad: 0,
-    });
-    cargarAvisos();
-    setEditId(null);
-    setTitulo("");
-    setContenido("");
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    if (!canManage || isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      const payload = {
+        titulo: formData.titulo.trim(),
+        contenido: formData.contenido.trim(),
+        estado: 1,
+        visibilidad: 0,
+      };
+
+      if (modalState.mode === "create") {
+        await API.post("avisos/", payload);
+      } else if (activeId) {
+        await API.put(`avisos/${activeId}/`, payload);
+      }
+      closeModal();
+      await loadAvisos();
+    } catch (err) {
+      console.error("Error al guardar el aviso", err);
+      alert("No se pudo guardar el aviso. Por favor, inténtalo nuevamente.");
+      setIsSubmitting(false);
+    }
   };
 
-  // Eliminar aviso
-  const eliminarAviso = async (id) => {
-    await API.delete(`avisos/${id}/`);
-    cargarAvisos();
+  const handleDelete = async (id) => {
+    if (!canManage) return;
+    const confirmed = window.confirm("¿Deseas eliminar este aviso?");
+    if (!confirmed) return;
+    try {
+      await API.delete(`avisos/${id}/`);
+      await loadAvisos();
+    } catch (err) {
+      console.error("Error al eliminar el aviso", err);
+      alert("No se pudo eliminar el aviso. Intenta nuevamente.");
+    }
   };
+
+  const formatFecha = (fecha) => {
+    if (!fecha) return "-";
+    try {
+      const date = new Date(fecha);
+      return date.toLocaleString();
+    } catch (err) {
+      return fecha;
+    }
+  };
+
+  const filteredAvisos = useMemo(() => {
+    const normalized = searchTerm.trim().toLowerCase();
+    if (!normalized) {
+      return avisos;
+    }
+    return avisos.filter((aviso) =>
+      (aviso.titulo || "").toLowerCase().includes(normalized)
+    );
+  }, [avisos, searchTerm]);
 
   return (
-    <div>
-      <h2>Gestión de Avisos</h2>
+    <div className="gestion-wrapper">
+      <div className="gestion-card">
+        <div className="gestion-card-header">
+          <div>
+            <h1 className="gestion-card-title">Avisos</h1>
+            <p className="gestion-card-subtitle">
+              Publica y administra los comunicados para los residentes.
+            </p>
+          </div>
+          <div className="gestion-header-actions">
+            <input
+              className="gestion-search-input"
+              type="search"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Buscar por título"
+              aria-label="Buscar aviso por título"
+            />
+            {canManage && (
+              <button className="gestion-add-button" onClick={openCreateModal}>
+                + Nuevo aviso
+              </button>
+            )}
+          </div>
+        </div>
 
-      <form onSubmit={editId ? guardarEdicion : crearAviso}>
-        <input
-          type="text"
-          placeholder="Título"
-          value={titulo}
-          onChange={(e) => setTitulo(e.target.value)}
-          required
-        />
-        <textarea
-          placeholder="Contenido"
-          value={contenido}
-          onChange={(e) => setContenido(e.target.value)}
-          required
-        />
-        <button type="submit">{editId ? "Guardar cambios" : "Crear Aviso"}</button>
-        {editId && (
-          <button type="button" onClick={() => setEditId(null)}>
-            Cancelar
-          </button>
+        {!canManage && (
+          <div className="gestion-readonly-banner">
+            El rol actual solo permite consultar los avisos publicados.
+          </div>
         )}
-      </form>
 
-      <ul>
-        {avisos.map((a) => (
-          <li key={a.id}>
-            <strong>{a.titulo}</strong> - {a.contenido}{" "}
-            <button onClick={() => editarAviso(a)}>Editar</button>
-            <button onClick={() => eliminarAviso(a.id)}>Eliminar</button>
-          </li>
-        ))}
-      </ul>
+        {error && <div className="gestion-error">{error}</div>}
+
+        <div className="gestion-table-container">
+          {loading ? (
+            <div className="gestion-empty">Cargando avisos...</div>
+          ) : avisos.length === 0 ? (
+            <div className="gestion-empty">No hay avisos registrados.</div>
+          ) : filteredAvisos.length === 0 ? (
+            <div className="gestion-empty">
+              No se encontraron avisos para la búsqueda actual.
+            </div>
+          ) : (
+            <table className="gestion-table">
+              <thead>
+                <tr>
+                  <th>Título</th>
+                  <th>Contenido</th>
+                  <th>Fecha de publicación</th>
+                  {canManage && <th className="gestion-col-actions">Acciones</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {filteredAvisos.map((aviso) => (
+                  <tr key={aviso.id}>
+                    <td>{aviso.titulo}</td>
+                    <td className="gestion-table-text">{aviso.contenido}</td>
+                    <td>{formatFecha(aviso.fecha_publicacion)}</td>
+                    {canManage && (
+                      <td>
+                        <div className="gestion-row-actions">
+                          <button
+                            type="button"
+                            className="gbutton gbutton--ghost"
+                            onClick={() => openEditModal(aviso)}
+                          >
+                            Editar
+                          </button>
+                          <button
+                            type="button"
+                            className="gbutton gbutton--danger"
+                            onClick={() => handleDelete(aviso.id)}
+                          >
+                            Eliminar
+                          </button>
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+
+      <CrudModal
+        open={modalState.open}
+        title={modalState.mode === "create" ? "Crear aviso" : "Editar aviso"}
+        onClose={closeModal}
+      >
+        <form className="gestion-form" onSubmit={handleSubmit}>
+          <label className="gestion-form-label">
+            Título
+            <input
+              className="gestion-input"
+              type="text"
+              value={formData.titulo}
+              onChange={(event) =>
+                setFormData((prev) => ({ ...prev, titulo: event.target.value }))
+              }
+              required
+            />
+          </label>
+
+          <label className="gestion-form-label">
+            Contenido
+            <textarea
+              className="gestion-textarea"
+              value={formData.contenido}
+              onChange={(event) =>
+                setFormData((prev) => ({ ...prev, contenido: event.target.value }))
+              }
+              rows={6}
+              required
+            />
+          </label>
+
+          <div className="crud-modal__footer">
+            <button
+              type="button"
+              className="gbutton gbutton--ghost"
+              onClick={closeModal}
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              className="gbutton gbutton--primary"
+              disabled={isSubmitting}
+            >
+              {isSubmitting
+                ? "Guardando..."
+                : modalState.mode === "create"
+                ? "Crear aviso"
+                : "Guardar cambios"}
+            </button>
+          </div>
+        </form>
+      </CrudModal>
     </div>
   );
 }
