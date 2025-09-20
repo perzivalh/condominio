@@ -130,3 +130,28 @@ CSRF_TRUSTED_ORIGINS = [
 CORS_ALLOWED_ORIGINS = [
     "https://condominio-production.up.railway.app"
 ]
+
+# Email
+EMAIL_BACKEND = os.environ.get("EMAIL_BACKEND")
+
+if not EMAIL_BACKEND:
+    if os.environ.get("EMAIL_HOST") or os.environ.get("EMAIL_HOST_USER"):
+        EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+    else:
+        EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "")
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", 587))
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "True") == "True"
+EMAIL_USE_SSL = os.environ.get("EMAIL_USE_SSL", "False") == "True"
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "no-reply@condominio.local")
+
+# Template opcional para link directo de reseteo
+PASSWORD_RESET_URL_TEMPLATE = os.environ.get("PASSWORD_RESET_URL_TEMPLATE", "")
+PASSWORD_RESET_TOKEN_MINUTES = int(os.environ.get("PASSWORD_RESET_TOKEN_MINUTES", 15))
+PASSWORD_RESET_EMAIL_SUBJECT = os.environ.get(
+    "PASSWORD_RESET_EMAIL_SUBJECT",
+    "Instrucciones para restablecer tu contraseña",
+)
