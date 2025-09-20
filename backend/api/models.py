@@ -202,10 +202,61 @@ class Pago(models.Model):
     comprobante_url = models.CharField(max_length=200, null=True, blank=True)
     estado = models.CharField(max_length=20, default="PENDIENTE")
     referencia_externa = models.CharField(max_length=100, null=True, blank=True)
+    registrado_por = models.ForeignKey(
+        Usuario,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="pagos_registrados",
+    )
+    comentario = models.TextField(blank=True)
 
     class Meta:
         db_table = "pago"
 
+
+class FinanzasCodigoQR(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    imagen = models.FileField(upload_to="finanzas/qr/")
+    descripcion = models.CharField(max_length=140, blank=True)
+    actualizado_por = models.ForeignKey(
+        Usuario, on_delete=models.SET_NULL, null=True, blank=True, related_name="qr_actualizados"
+    )
+    creado_en = models.DateTimeField(auto_now_add=True)
+    actualizado_en = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "finanzas_codigo_qr"
+
+
+class NotificacionDirecta(models.Model):
+    ESTADO_ENVIADA = "ENVIADA"
+    ESTADO_LEIDA = "LEIDA"
+    ESTADO_CHOICES = [
+        (ESTADO_ENVIADA, "Enviada"),
+        (ESTADO_LEIDA, "Leída"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    residente = models.ForeignKey(Residente, on_delete=models.CASCADE, related_name="notificaciones")
+    titulo = models.CharField(max_length=120)
+    mensaje = models.TextField()
+    estado = models.CharField(max_length=12, choices=ESTADO_CHOICES, default=ESTADO_ENVIADA)
+    creado_en = models.DateTimeField(auto_now_add=True)
+    actualizado_en = models.DateTimeField(auto_now=True)
+    enviado_por = models.ForeignKey(
+        Usuario, on_delete=models.SET_NULL, null=True, blank=True, related_name="notificaciones_enviadas"
+    )
+    factura = models.ForeignKey(
+        Factura, on_delete=models.SET_NULL, null=True, blank=True, related_name="notificaciones"
+    )
+    pago = models.ForeignKey(
+        Pago, on_delete=models.SET_NULL, null=True, blank=True, related_name="notificaciones"
+    )
+
+    class Meta:
+        db_table = "notificacion_directa"
+        ordering = ("-creado_en",)
 
 class ExpensaConfig(models.Model):
     PERIODICIDAD_MENSUAL = "MENSUAL"

@@ -2,6 +2,7 @@ from datetime import timedelta
 from decimal import Decimal
 
 from django.contrib.auth.models import User
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
@@ -152,6 +153,13 @@ class FinanzasAdminInvoiceTests(APITestCase):
             fecha_desde=timezone.localdate(),
         )
 
+        residente_user = User.objects.create_user(
+            username="residente1", email="residente1@example.com", password="pass1234"
+        )
+        self.usuario_residente_a = Usuario.objects.create(user=residente_user)
+        self.residente_a.usuario = self.usuario_residente_a
+        self.residente_a.save()
+
         multa_config = MultaConfig.objects.create(
             nombre="Parqueo", descripcion="Mal uso", monto="50.00"
         )
@@ -267,3 +275,163 @@ class FinanzasAdminInvoiceTests(APITestCase):
             format="json",
         )
         self.assertEqual(response.status_code, 400)
+
+    def test_admin_resolver_pago_revision_aprueba(self):
+        pago = Pago.objects.create(
+            factura=self.factura_pendiente,
+            metodo="QR",
+            monto_pagado=Decimal("200.00"),
+            estado="REVISION",
+            registrado_por=self.usuario_residente_a,
+        )
+
+        response = self.client.post(
+            f"/api/finanzas/admin/facturas/{self.factura_pendiente.id}/pagos/{pago.id}/resolver/",
+            {"accion": "aprobar"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.factura_pendiente.refresh_from_db()
+        pago.refresh_from_db()
+        self.assertEqual(self.factura_pendiente.estado.upper(), "PAGADA")
+        self.assertIsNotNone(self.factura_pendiente.fecha_pago)
+        self.assertEqual(pago.estado.upper(), "CONFIRMADO")
+
+    def test_admin_resolver_pago_revision_rechaza(self):
+        pago = Pago.objects.create(
+            factura=self.factura_pendiente,
+            metodo="QR",
+            monto_pagado=Decimal("200.00"),
+            estado="REVISION",
+            registrado_por=self.usuario_residente_a,
+        )
+
+        response = self.client.post(
+            f"/api/finanzas/admin/facturas/{self.factura_pendiente.id}/pagos/{pago.id}/resolver/",
+            {"accion": "rechazar", "comentario": "No coincide el monto"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.factura_pendiente.refresh_from_db()
+        pago.refresh_from_db()
+        self.assertEqual(self.factura_pendiente.estado.upper(), "PENDIENTE")
+        self.assertIsNone(self.factura_pendiente.fecha_pago)
+        self.assertEqual(pago.estado.upper(), "RECHAZADO")
+        self.assertIn("No coincide", pago.comentario)
+
+    def test_admin_puede_cargar_y_reemplazar_qr(self):
+        primera_imagen = SimpleUploadedFile(
+            "qr1.png", b"fake image data", content_type="image/png"
+        )
+        response = self.client.post(
+            "/api/finanzas/admin/codigo-qr/",
+            {"archivo": primera_imagen, "descripcion": "Inicial"},
+        )
+        self.assertEqual(response.status_code, 201)
+        data = response.json()
+        self.assertIn("url", data)
+        primer_id = data["id"]
+
+        segunda_imagen = SimpleUploadedFile(
+            "qr2.png", b"second fake image", content_type="image/png"
+        )
+        response = self.client.post(
+            "/api/finanzas/admin/codigo-qr/",
+            {"archivo": segunda_imagen, "descripcion": "Actualizado"},
+        )
+        self.assertEqual(response.status_code, 201)
+        data_reemplazo = response.json()
+        self.assertEqual(primer_id, data_reemplazo["id"])
+        self.assertIn("Actualizado", data_reemplazo.get("descripcion", ""))
+
+    def test_admin_crea_notificacion_directa(self):
+        payload = {
+            "residente": str(self.residente_a.id),
+            "titulo": "Pago confirmado",
+            "mensaje": "Tu pago ha sido registrado",
+        }
+        response = self.client.post(
+            "/api/finanzas/admin/notificaciones/",
+            payload,
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201)
+        data = response.json()
+        self.assertEqual(data["titulo"], "Pago confirmado")
+        self.assertEqual(data["residente"], str(self.residente_a.id))
+
+
+class FinanzasResidentPaymentTests(APITestCase):
+    def setUp(self):
+        self.auth_user = User.objects.create_user(
+            username="residente_app", email="residente@app.com", password="pass1234"
+        )
+        self.usuario_residente = Usuario.objects.create(user=self.auth_user)
+        self.client.force_authenticate(user=self.auth_user)
+
+        condominio = Condominio.objects.create(nombre="Central Residencial")
+        self.vivienda = Vivienda.objects.create(
+            condominio=condominio,
+            codigo_unidad="C-101",
+            bloque="C",
+            numero="101",
+        )
+        self.residente = Residente.objects.create(
+            ci="999", nombres="Laura", apellidos="Suarez"
+        )
+        self.residente.usuario = self.usuario_residente
+        self.residente.save()
+        ResidenteVivienda.objects.create(
+            residente=self.residente,
+            vivienda=self.vivienda,
+            fecha_desde=timezone.localdate(),
+        )
+
+        periodo = timezone.localdate().strftime("%Y-%m")
+        self.factura = Factura.objects.create(
+            vivienda=self.vivienda,
+            periodo=periodo,
+            monto=Decimal("180.00"),
+            estado="PENDIENTE",
+            fecha_vencimiento=timezone.localdate() + timedelta(days=10),
+        )
+
+    def test_residente_confirma_pago_crea_revision(self):
+        response = self.client.post(
+            f"/api/finanzas/facturas/{self.factura.id}/confirmar-pago/",
+            {"monto_pagado": "180.00", "comentario": "Pago via QR"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 202)
+
+        self.factura.refresh_from_db()
+        self.assertEqual(self.factura.estado.upper(), "REVISION")
+        pago = Pago.objects.get(factura=self.factura)
+        self.assertEqual(pago.estado.upper(), "REVISION")
+        self.assertEqual(pago.registrado_por, self.usuario_residente)
+
+    def test_residente_recupera_y_lee_notificaciones(self):
+        self.client.post(
+            f"/api/finanzas/facturas/{self.factura.id}/confirmar-pago/",
+            {"monto_pagado": "180.00"},
+            format="json",
+        )
+
+        response = self.client.get("/api/finanzas/notificaciones/")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertGreaterEqual(len(data), 1)
+        notificacion_id = data[0]["id"]
+        self.assertEqual(data[0]["estado"], "ENVIADA")
+
+        mark_response = self.client.post(
+            f"/api/finanzas/notificaciones/{notificacion_id}/leida/"
+        )
+        self.assertEqual(mark_response.status_code, 204)
+
+        response = self.client.get("/api/finanzas/notificaciones/")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data[0]["estado"], "LEIDA")

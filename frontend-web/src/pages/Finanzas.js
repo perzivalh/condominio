@@ -32,6 +32,7 @@ const INITIAL_FACTURA_FILTERS = {
 const FACTURA_ESTADO_OPTIONS = [
   { value: "", label: "Todos" },
   { value: "PENDIENTE", label: "Pendiente" },
+  { value: "REVISION", label: "En revisión" },
   { value: "PAGADA", label: "Pagada" },
   { value: "PAGADO", label: "Pagado" },
   { value: "CANCELADA", label: "Cancelada" },
@@ -476,6 +477,9 @@ const FacturaDetalleView = ({
   onDownload,
   formatCurrency,
   formatDate,
+  onApprovePago,
+  onRejectPago,
+  resolvingPagoId,
 }) => {
   if (!factura) {
     return (
@@ -589,18 +593,62 @@ const FacturaDetalleView = ({
                 <th>Método</th>
                 <th>Monto</th>
                 <th>Estado</th>
+                <th>Registrado por</th>
+                <th>Referencia</th>
+                <th>Nota</th>
                 <th>Fecha</th>
+                <th>Acciones</th>
               </tr>
             </thead>
             <tbody>
-              {pagos.map((pago) => (
-                <tr key={pago.id}>
-                  <td>{pago.metodo}</td>
-                  <td>{formatCurrency(pago.monto_pagado)}</td>
-                  <td>{pago.estado}</td>
-                  <td>{formatDate(pago.fecha_pago)}</td>
-                </tr>
-              ))}
+              {pagos.map((pago) => {
+                const estadoPago = (pago.estado || "").toString();
+                const estadoUpper = estadoPago.toUpperCase();
+                const isRevision = estadoUpper === "REVISION";
+                return (
+                  <tr key={pago.id}>
+                    <td>{pago.metodo}</td>
+                    <td>{formatCurrency(pago.monto_pagado)}</td>
+                    <td>
+                      <span
+                        className={`factura-detalle-pill status-${estadoUpper.toLowerCase()}`}
+                      >
+                        {estadoPago || "-"}
+                      </span>
+                    </td>
+                    <td>{pago.registrado_por || "-"}</td>
+                    <td>{pago.referencia_externa || "-"}</td>
+                    <td>{pago.comentario || "-"}</td>
+                    <td>{formatDate(pago.fecha_pago)}</td>
+                    <td>
+                      {isRevision && onApprovePago && onRejectPago ? (
+                        <div className="factura-detalle-actions-inline">
+                          <button
+                            type="button"
+                            className="finanzas-button ghost"
+                            onClick={() => onApprovePago(factura, pago)}
+                            disabled={resolvingPagoId === pago.id}
+                          >
+                            {resolvingPagoId === pago.id
+                              ? "Procesando..."
+                              : "Aceptar"}
+                          </button>
+                          <button
+                            type="button"
+                            className="finanzas-button danger"
+                            onClick={() => onRejectPago(factura, pago)}
+                            disabled={resolvingPagoId === pago.id}
+                          >
+                            Rechazar
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="factura-detalle-muted">-</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         ) : (
@@ -714,6 +762,165 @@ const PagoManualForm = ({ factura, onSubmit, onCancel, loading }) => {
   );
 };
 
+const PagoRevisionRechazoForm = ({ onSubmit, onCancel, loading }) => {
+  const [comentario, setComentario] = useState("");
+  const [localError, setLocalError] = useState("");
+
+  const handleSubmit = (event) => {
+    event.preventDefault();
+    if (!comentario.trim()) {
+      setLocalError("Describe el motivo del rechazo para notificar al residente.");
+      return;
+    }
+    setLocalError("");
+    onSubmit(comentario.trim());
+  };
+
+  return (
+    <form className="finanzas-form" onSubmit={handleSubmit}>
+      <label className="finanzas-field">
+        <span>Motivo del rechazo</span>
+        <textarea
+          name="comentario"
+          rows={4}
+          value={comentario}
+          onChange={(event) => setComentario(event.target.value)}
+          placeholder="Detalla el motivo para que el residente pueda corregirlo"
+        />
+      </label>
+      {(localError) && <p className="finanzas-error">{localError}</p>}
+      <div className="finanzas-modal-actions">
+        <button
+          type="button"
+          className="finanzas-button secondary"
+          onClick={onCancel}
+          disabled={loading}
+        >
+          Cancelar
+        </button>
+        <button
+          type="submit"
+          className="finanzas-button danger"
+          disabled={loading}
+        >
+          {loading ? "Procesando..." : "Rechazar pago"}
+        </button>
+      </div>
+    </form>
+  );
+};
+
+const QrConfigForm = ({ current, loading, error, onSubmit, onDelete, onCancel }) => {
+  const [descripcion, setDescripcion] = useState(current?.descripcion || "");
+  const [archivo, setArchivo] = useState(null);
+  const [preview, setPreview] = useState(current?.url || "");
+  const [localError, setLocalError] = useState("");
+
+  useEffect(() => {
+    setDescripcion(current?.descripcion || "");
+    setArchivo(null);
+    setPreview(current?.url || "");
+    setLocalError("");
+  }, [current?.id]);
+
+  useEffect(() => () => {
+    if (preview && preview.startsWith("blob:")) {
+      URL.revokeObjectURL(preview);
+    }
+  }, [preview]);
+
+  const handleFileChange = (event) => {
+    const file = event.target.files && event.target.files[0];
+    setArchivo(file || null);
+    if (file) {
+      const objectUrl = URL.createObjectURL(file);
+      setPreview(objectUrl);
+    } else {
+      setPreview(current?.url || "");
+    }
+  };
+
+  const handleSubmit = (event) => {
+    event.preventDefault();
+    if (!archivo && !current?.id) {
+      setLocalError("Selecciona una imagen con el código QR.");
+      return;
+    }
+    setLocalError("");
+    const formData = new FormData();
+    if (archivo) {
+      formData.append("archivo", archivo);
+    }
+    formData.append("descripcion", descripcion || "");
+    onSubmit(formData);
+  };
+
+  return (
+    <form className="finanzas-form" onSubmit={handleSubmit}>
+      <div className="qr-config-preview">
+        {preview ? (
+          <img src={preview} alt="Código QR del condominio" />
+        ) : (
+          <div className="qr-config-placeholder">No hay QR configurado</div>
+        )}
+      </div>
+
+      <label className="finanzas-field">
+        <span>Descripción opcional</span>
+        <input
+          type="text"
+          name="descripcion"
+          value={descripcion}
+          onChange={(event) => setDescripcion(event.target.value)}
+          placeholder="Cuenta destino, vigencia, etc."
+        />
+      </label>
+
+      <label className="finanzas-field">
+        <span>Imagen del QR</span>
+        <input
+          type="file"
+          accept="image/*"
+          onChange={handleFileChange}
+          disabled={loading}
+        />
+      </label>
+
+      {(localError || error) && (
+        <p className="finanzas-error">{localError || error}</p>
+      )}
+
+      <div className="finanzas-modal-actions">
+        <button
+          type="button"
+          className="finanzas-button secondary"
+          onClick={onCancel}
+          disabled={loading}
+        >
+          Cancelar
+        </button>
+        {current?.id && (
+          <button
+            type="button"
+            className="finanzas-button ghost"
+            onClick={onDelete}
+            disabled={loading}
+          >
+            Eliminar QR
+          </button>
+        )}
+        <button
+          type="submit"
+          className="finanzas-button primary"
+          disabled={loading}
+        >
+          {loading ? "Guardando..." : "Guardar cambios"}
+        </button>
+      </div>
+    </form>
+  );
+};
+
 function Finanzas() {
   const [activeTab, setActiveTab] = useState("panel");
   const [summary, setSummary] = useState(null);
@@ -739,6 +946,12 @@ function Finanzas() {
   }));
   const facturasFiltersRef = useRef({ ...INITIAL_FACTURA_FILTERS });
   const [actionLoading, setActionLoading] = useState(false);
+  const [resolvingPagoId, setResolvingPagoId] = useState(null);
+  const [qrConfig, setQrConfig] = useState(null);
+  const [qrLoading, setQrLoading] = useState(false);
+  const [qrSaving, setQrSaving] = useState(false);
+  const [qrError, setQrError] = useState("");
+  const [qrMessage, setQrMessage] = useState("");
 
   const currencyFormatter = useMemo(
     () =>
@@ -852,6 +1065,23 @@ function Finanzas() {
     [getErrorMessage]
   );
 
+  const loadQrConfig = useCallback(async () => {
+    setQrLoading(true);
+    setQrError("");
+    try {
+      const response = await API.get("finanzas/admin/codigo-qr/");
+      setQrConfig(response.data);
+    } catch (err) {
+      if (err?.response?.status === 404) {
+        setQrConfig(null);
+      } else {
+        setQrError(getErrorMessage(err, "No se pudo obtener el archivo QR actual."));
+      }
+    } finally {
+      setQrLoading(false);
+    }
+  }, [getErrorMessage]);
+
   const handleOpenModal = useCallback((type, data = null) => {
     setModalState({ type, data });
   }, []);
@@ -859,6 +1089,166 @@ function Finanzas() {
   const handleCloseModal = useCallback(() => {
     setModalState({ type: null, data: null });
   }, []);
+
+  const resolvePago = useCallback(
+    async (facturaId, pagoId, accion, comentario = "") => {
+      if (!facturaId || !pagoId) {
+        return null;
+      }
+      setResolvingPagoId(pagoId);
+      setFacturasError("");
+      try {
+        const payload = { accion };
+        if (comentario) {
+          payload.comentario = comentario;
+        }
+        const response = await API.post(
+          `finanzas/admin/facturas/${facturaId}/pagos/${pagoId}/resolver/`,
+          payload
+        );
+        return response.data;
+      } catch (err) {
+        setFacturasError(
+          getErrorMessage(err, "No se pudo actualizar el estado del pago.")
+        );
+        throw err;
+      } finally {
+        setResolvingPagoId(null);
+      }
+    },
+    [getErrorMessage]
+  );
+
+  const handleApprovePago = useCallback(
+    async (factura, pago) => {
+      if (!factura?.id || !pago?.id) {
+        return;
+      }
+      try {
+        const data = await resolvePago(factura.id, pago.id, "aprobar");
+        setModalState((prev) => {
+          if (prev.type !== "factura-detalle") {
+            return prev;
+          }
+          const detallesPrevios = prev.data?.detalles || [];
+          return {
+            type: "factura-detalle",
+            data: {
+              ...data,
+              detalles: data.detalles || detallesPrevios,
+            },
+          };
+        });
+        setFacturasMessage("Pago confirmado correctamente.");
+        await Promise.all([loadSummary(), loadFacturas()]);
+      } catch (err) {
+        // el error ya se maneja en resolvePago
+      }
+    },
+    [loadFacturas, loadSummary, resolvePago]
+  );
+
+  const handleRejectPago = useCallback(
+    (factura, pago) => {
+      if (!factura?.id || !pago?.id) {
+        return;
+      }
+      setModalState({
+        type: "pago-rechazo",
+        data: {
+          facturaId: factura.id,
+          pago,
+          original:
+            modalState.type === "factura-detalle" ? modalState.data : null,
+        },
+      });
+    },
+    [modalState]
+  );
+
+  const handleCancelRechazo = useCallback(() => {
+    const original = modalState.data?.original;
+    if (original) {
+      setModalState({ type: "factura-detalle", data: original });
+    } else {
+      handleCloseModal();
+    }
+  }, [handleCloseModal, modalState.data]);
+
+  const handleSubmitRechazo = useCallback(
+    async (comentario) => {
+      const facturaId = modalState.data?.facturaId;
+      const pago = modalState.data?.pago;
+      const original = modalState.data?.original;
+      if (!facturaId || !pago?.id) {
+        return;
+      }
+      try {
+        const data = await resolvePago(facturaId, pago.id, "rechazar", comentario);
+        const detallesPrevios = original?.detalles || [];
+        setModalState({
+          type: "factura-detalle",
+          data: {
+            ...data,
+            detalles: data.detalles || detallesPrevios,
+          },
+        });
+        setFacturasMessage("Pago devuelto al residente para revisión.");
+        await Promise.all([loadFacturas(), loadSummary()]);
+      } catch (err) {
+        // el error ya se manejó en resolvePago
+      }
+    },
+    [loadFacturas, loadSummary, modalState.data, resolvePago]
+  );
+
+  const handleSaveQr = useCallback(
+    async (formData) => {
+      if (!(formData instanceof FormData)) {
+        return;
+      }
+      try {
+        setQrSaving(true);
+        setQrError("");
+        const response = await API.post("finanzas/admin/codigo-qr/", formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+        setQrConfig(response.data);
+        setQrMessage("El código QR se actualizó correctamente.");
+        handleCloseModal();
+      } catch (err) {
+        setQrError(
+          getErrorMessage(err, "No se pudo actualizar el código QR del condominio.")
+        );
+      } finally {
+        setQrSaving(false);
+      }
+    },
+    [getErrorMessage, handleCloseModal]
+  );
+
+  const handleDeleteQr = useCallback(async () => {
+    const confirmed = window.confirm(
+      "¿Eliminar el código QR actual? Los residentes dejarán de verlo."
+    );
+    if (!confirmed) {
+      return;
+    }
+    try {
+      setQrSaving(true);
+      setQrError("");
+      await API.delete("finanzas/admin/codigo-qr/");
+      setQrConfig(null);
+      setQrMessage("El código QR se eliminó correctamente.");
+      handleCloseModal();
+    } catch (err) {
+      setQrError(
+        getErrorMessage(err, "No se pudo eliminar el código QR configurado.")
+      );
+    } finally {
+      setQrSaving(false);
+    }
+  }, [getErrorMessage, handleCloseModal]);
 
   const handleFacturasFilterChange = useCallback((field, value) => {
     setFacturasFilters((prev) => ({ ...prev, [field]: value }));
@@ -1084,10 +1474,19 @@ function Finanzas() {
   }, [facturasMessage]);
 
   useEffect(() => {
+    if (!qrMessage) {
+      return undefined;
+    }
+    const timeout = setTimeout(() => setQrMessage(""), 4000);
+    return () => clearTimeout(timeout);
+  }, [qrMessage]);
+
+  useEffect(() => {
     if (activeTab === "facturas") {
       loadFacturas();
+      loadQrConfig();
     }
-  }, [activeTab, loadFacturas]);
+  }, [activeTab, loadFacturas, loadQrConfig]);
 
   const metrics = useMemo(() => {
     const parseNumber = (value) => {
@@ -1630,6 +2029,16 @@ function Finanzas() {
           >
             Generar facturas
           </button>
+          <button
+            type="button"
+            className="finanzas-button secondary"
+            onClick={() => {
+              loadQrConfig();
+              handleOpenModal("qr-config");
+            }}
+          >
+            Archivo QR
+          </button>
 
           <form
             className="finanzas-facturas-search"
@@ -1744,10 +2153,12 @@ function Finanzas() {
           </div>
         )}
 
-        {(facturasError || facturasMessage) && (
+        {(facturasError || facturasMessage || qrError || qrMessage) && (
           <div className="finanzas-facturas-feedback">
             {facturasError && <p className="error">{facturasError}</p>}
             {facturasMessage && <p className="success">{facturasMessage}</p>}
+            {qrError && <p className="error">{qrError}</p>}
+            {qrMessage && <p className="success">{qrMessage}</p>}
           </div>
         )}
 
@@ -1775,10 +2186,13 @@ function Finanzas() {
               <tbody>
                 {facturas.map((factura) => {
                   const estado = factura.estado || "";
+                  const estadoUpper = estado.toUpperCase();
                   const estadoClass = isFacturaPagada(estado)
                     ? "success"
-                    : estado.toUpperCase() === "PENDIENTE"
+                    : estadoUpper === "PENDIENTE"
                     ? "warning"
+                    : estadoUpper === "REVISION"
+                    ? "review"
                     : "info";
                   const residentesLabel =
                     Array.isArray(factura.residentes) && factura.residentes.length
@@ -1817,10 +2231,14 @@ function Finanzas() {
                           type="button"
                           className="finanzas-button accent"
                           onClick={() => handleOpenPagoManual(factura)}
-                          disabled={isFacturaPagada(estado)}
+                          disabled={
+                            isFacturaPagada(estado) || estadoUpper === "REVISION"
+                          }
                           title={
                             isFacturaPagada(estado)
                               ? "La factura ya está pagada"
+                              : estadoUpper === "REVISION"
+                              ? "La factura tiene un pago en revisión"
                               : "Registrar pago manual"
                           }
                         >
@@ -1914,16 +2332,20 @@ function Finanzas() {
       const titulo = detalleData?.factura?.periodo
         ? `Factura ${detalleData.factura.periodo}`
         : "Detalle de factura";
+      const detalles = detalleData.detalles || [];
 
       return (
         <Modal title={titulo} onClose={handleCloseModal}>
           <FacturaDetalleView
             factura={detalleData.factura}
-            detalles={detalleData.detalles}
+            detalles={detalles}
             pagos={detalleData.pagos}
             onDownload={() => handleDownloadFactura(detalleData.factura)}
             formatCurrency={formatCurrency}
             formatDate={formatDate}
+            onApprovePago={handleApprovePago}
+            onRejectPago={handleRejectPago}
+            resolvingPagoId={resolvingPagoId}
           />
         </Modal>
       );
@@ -1942,6 +2364,35 @@ function Finanzas() {
             onSubmit={handleSubmitPagoManual}
             onCancel={handleCloseModal}
             loading={actionLoading}
+          />
+        </Modal>
+      );
+    }
+
+    if (modalState.type === "pago-rechazo") {
+      const pago = modalState.data?.pago;
+      const loading = pago?.id && resolvingPagoId === pago.id;
+      return (
+        <Modal title="Rechazar pago" onClose={handleCancelRechazo}>
+          <PagoRevisionRechazoForm
+            onSubmit={handleSubmitRechazo}
+            onCancel={handleCancelRechazo}
+            loading={loading}
+          />
+        </Modal>
+      );
+    }
+
+    if (modalState.type === "qr-config") {
+      return (
+        <Modal title="Configuración de pago QR" onClose={handleCloseModal}>
+          <QrConfigForm
+            current={qrConfig}
+            loading={qrSaving}
+            error={qrError}
+            onSubmit={handleSaveQr}
+            onDelete={qrConfig ? handleDeleteQr : undefined}
+            onCancel={handleCloseModal}
           />
         </Modal>
       );

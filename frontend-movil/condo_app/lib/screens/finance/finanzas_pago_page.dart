@@ -5,21 +5,18 @@ import '../../models/finance_models.dart';
 import '../../models/resident_profile.dart';
 import '../../widgets/neumorphic.dart';
 import '../../widgets/resident_bottom_nav.dart';
+import 'finanzas_pago_qr_page.dart';
 
 class FinanzasPagoPage extends StatelessWidget {
   const FinanzasPagoPage({
     super.key,
     required this.session,
-    required this.summary,
     required this.montoSeleccionado,
-    required this.tituloSeleccion,
     this.facturaSeleccionada,
   });
 
   final ResidentSession session;
-  final FinanceSummary summary;
   final double montoSeleccionado;
-  final String tituloSeleccion;
   final FinanceInvoice? facturaSeleccionada;
 
   @override
@@ -86,10 +83,19 @@ class FinanzasPagoPage extends StatelessWidget {
                         _PaymentOption(
                           icon: Icons.qr_code_2_rounded,
                           label: 'QR',
-                          onTap: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Pago con QR pendiente de integración.')),
+                          onTap: () async {
+                            final result = await Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => FinanzasPagoQrPage(
+                                  session: session,
+                                  facturaSeleccionada: facturaSeleccionada,
+                                  montoSeleccionado: montoSeleccionado,
+                                ),
+                              ),
                             );
+                            if (result == true) {
+                              Navigator.of(context).pop(true);
+                            }
                           },
                         ),
                         _PaymentOption(

@@ -5,6 +5,7 @@ import '../models/resident_profile.dart';
 import '../widgets/neumorphic.dart';
 import '../widgets/resident_bottom_nav.dart';
 import 'finance/finanzas_page.dart';
+import 'notifications/resident_notifications_page.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key, required this.session});
@@ -36,6 +37,14 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
+  void _handleNotificationsTap() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ResidentNotificationsPage(session: widget.session),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final profile = widget.session.profile;
@@ -48,7 +57,10 @@ class _DashboardPageState extends State<DashboardPage> {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 28, 24, 0),
-              child: _HeaderRow(profile: profile),
+              child: _HeaderRow(
+                profile: profile,
+                onNotificationsTap: _handleNotificationsTap,
+              ),
             ),
             const SizedBox(height: 24),
             Expanded(
@@ -74,9 +86,10 @@ class _DashboardPageState extends State<DashboardPage> {
 }
 
 class _HeaderRow extends StatelessWidget {
-  const _HeaderRow({required this.profile});
+  const _HeaderRow({required this.profile, required this.onNotificationsTap});
 
   final ResidentProfile profile;
+  final VoidCallback onNotificationsTap;
 
   @override
   Widget build(BuildContext context) {
@@ -111,11 +124,23 @@ class _HeaderRow extends StatelessWidget {
         const SizedBox(width: 16),
         NeumorphicSurface(
           borderRadius: BorderRadius.circular(22),
-          padding: const EdgeInsets.all(14),
-          child: const Icon(
-            Icons.notifications_none_outlined,
-            color: AppColors.primaryText,
-            size: 26,
+          padding: EdgeInsets.zero,
+          child: Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(22),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(22),
+              onTap: onNotificationsTap,
+              child: const SizedBox(
+                width: 48,
+                height: 48,
+                child: Icon(
+                  Icons.notifications_none_outlined,
+                  color: AppColors.primaryText,
+                  size: 26,
+                ),
+              ),
+            ),
           ),
         ),
       ],

@@ -9,8 +9,6 @@ import '../../widgets/resident_bottom_nav.dart';
 import 'finanzas_historial_page.dart';
 import 'finanzas_pago_page.dart';
 
-enum FinancePaymentSelection { total, oldest }
-
 class FinanzasPage extends StatefulWidget {
   const FinanzasPage({super.key, required this.session});
 
@@ -25,7 +23,6 @@ class _FinanzasPageState extends State<FinanzasPage> {
   FinanceSummary? _summary;
   String? _error;
   bool _isLoading = false;
-  FinancePaymentSelection _selection = FinancePaymentSelection.total;
 
   @override
   void initState() {
@@ -62,41 +59,21 @@ class _FinanzasPageState extends State<FinanzasPage> {
     );
   }
 
-  void _navigateToPayment(FinanceSummary summary) {
-    FinanceInvoice? selectedInvoice;
-    double monto = summary.totalPendiente;
-    String titulo = 'Deuda total';
-
-    if (_selection == FinancePaymentSelection.oldest) {
-      selectedInvoice = summary.facturaMasAntigua;
-      if (selectedInvoice == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No hay facturas pendientes.')),
-        );
-        return;
-      }
-      monto = selectedInvoice.monto;
-      titulo = 'Factura más antigua';
-    }
-
-    if (summary.cantidadPendiente == 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No tienes pagos pendientes.')),
-      );
-      return;
-    }
-
-    Navigator.of(context).push(
+  Future<void> _navigateToPayment(FinanceInvoice invoice) async {
+    final result = await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => FinanzasPagoPage(
           session: widget.session,
-          summary: summary,
-          montoSeleccionado: monto,
-          tituloSeleccion: titulo,
-          facturaSeleccionada: selectedInvoice,
+          montoSeleccionado: invoice.monto,
+          facturaSeleccionada: invoice,
         ),
       ),
     );
+
+    if (!mounted) return;
+    if (result == true) {
+      await _loadSummary();
+    }
   }
 
   @override
@@ -196,7 +173,7 @@ class _FinanzasPageState extends State<FinanzasPage> {
     }
 
     final hasPendientes = summary.cantidadPendiente > 0;
-    final oldestAmount = summary.facturaMasAntigua?.monto ?? 0;
+    final oldestInvoice = summary.facturaMasAntigua;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -235,62 +212,69 @@ class _FinanzasPageState extends State<FinanzasPage> {
                 ),
               ),
               const SizedBox(height: 4),
-              Text(
-                'Monto factura pendiente más antigua:  Bs ${oldestAmount.toStringAsFixed(2)}',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.primaryText,
+              if (oldestInvoice != null) ...[
+                Text(
+                  'Factura pendiente más antigua: ${oldestInvoice.periodo}',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.primaryText,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 18),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _radioOption(
-                    title: 'Deuda total',
-                    subtitle: 'Bs ${summary.totalPendiente.toStringAsFixed(2)}',
-                    value: FinancePaymentSelection.total,
-                    enabled: hasPendientes,
+                const SizedBox(height: 6),
+                Text(
+                  'Monto: Bs ${oldestInvoice.monto.toStringAsFixed(2)}',
+                  style: const TextStyle(
+                    fontSize: 15,
+                    color: AppColors.secondaryText,
+                    fontWeight: FontWeight.w600,
                   ),
-                  const SizedBox(height: 8),
-                  _radioOption(
-                    title: 'Más antigua',
-                    subtitle: 'Bs ${oldestAmount.toStringAsFixed(2)}',
-                    value: FinancePaymentSelection.oldest,
-                    enabled: hasPendientes && summary.facturaMasAntigua != null,
+                ),
+              ] else ...[
+                const Text(
+                  'No tienes facturas antiguas en espera.',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.secondaryText,
                   ),
-                ],
-              ),
+                ),
+              ],
             ],
           ),
         ),
         const SizedBox(height: 24),
-        NeumorphicSurface(
-          borderRadius: BorderRadius.circular(24),
-          padding: EdgeInsets.zero,
-          child: Material(
-            color: Colors.transparent,
-            borderRadius: BorderRadius.circular(24),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(24),
-              onTap: hasPendientes ? () => _navigateToPayment(summary) : null,
-              child: const SizedBox(
-                height: 56,
-                child: Center(
-                  child: Text(
-                    'Pagar',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.primaryText,
-                    ),
-                  ),
-                ),
-              ),
-            ),
+        const Text(
+          'Facturas pendientes',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            color: AppColors.primaryText,
           ),
         ),
+        const SizedBox(height: 12),
+        if (!hasPendientes)
+          const NeumorphicSurface(
+            borderRadius: BorderRadius.all(Radius.circular(24)),
+            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+            child: Center(
+              child: Text(
+                'No tienes pagos pendientes. ¡Todo al día!',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.secondaryText,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          )
+        else
+          Column(
+            children: summary.pendientes
+                .map((invoice) => _invoiceCard(invoice))
+                .toList(),
+          ),
         const SizedBox(height: 18),
         NeumorphicSurface(
           borderRadius: BorderRadius.circular(24),
@@ -321,61 +305,95 @@ class _FinanzasPageState extends State<FinanzasPage> {
     );
   }
 
-  Widget _radioOption({
-    required String title,
-    required String subtitle,
-    required FinancePaymentSelection value,
-    required bool enabled,
-  }) {
-    return Opacity(
-      opacity: enabled ? 1 : 0.4,
-      child: GestureDetector(
-        onTap: enabled
-            ? () {
-                setState(() {
-                  _selection = value;
-                });
-              }
-            : null,
-        child: Row(
+  Widget _invoiceCard(FinanceInvoice invoice) {
+    String formatDate(DateTime? date) {
+      if (date == null) return '--';
+      final local = date.toLocal();
+      final day = local.day.toString().padLeft(2, '0');
+      final month = local.month.toString().padLeft(2, '0');
+      return '$day/$month/${local.year}';
+    }
+
+    final estado = (invoice.estado).toUpperCase();
+    final isRevision = estado == 'REVISION';
+    final canPay = estado == 'PENDIENTE';
+    final statusLabel = isRevision ? 'En revisión' : 'Pendiente';
+    final statusColor = isRevision ? Colors.blueGrey : Colors.orangeAccent;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: NeumorphicSurface(
+        borderRadius: BorderRadius.circular(24),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 22),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Radio<FinancePaymentSelection>(
-              value: value,
-              // ignore: deprecated_member_use
-              groupValue: enabled ? _selection : null,
-              activeColor: AppColors.primaryText,
-              // ignore: deprecated_member_use
-              onChanged: enabled
-                  ? (val) {
-                      if (val != null) {
-                        setState(() {
-                          _selection = val;
-                        });
-                      }
-                    }
-                  : null,
+            Text(
+              'Periodo ${invoice.periodo}',
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: AppColors.primaryText,
+              ),
             ),
-            const SizedBox(width: 4),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 16,
-                      color: AppColors.primaryText,
+            const SizedBox(height: 8),
+            Text(
+              'Monto: Bs ${invoice.monto.toStringAsFixed(2)}',
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: AppColors.secondaryText,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: statusColor.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    statusLabel,
+                    style: TextStyle(
+                      color: statusColor,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
-                  Text(
-                    subtitle,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: AppColors.secondaryText,
-                    ),
+                ),
+                const Spacer(),
+                Text(
+                  'Vence: ${formatDate(invoice.fechaVencimiento)}',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.secondaryText,
                   ),
-                ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor:
+                      canPay ? AppColors.primaryText : Colors.grey.shade400,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                ),
+                onPressed: canPay ? () => _navigateToPayment(invoice) : null,
+                child: Text(
+                  canPay ? 'Pagar factura' : 'En revisión',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ),
             ),
           ],

@@ -494,6 +494,28 @@
   font-size: 0.75rem;
 }
 
+.factura-detalle-pill.status-revision {
+  background: rgba(241, 165, 65, 0.2);
+  color: #a05a1b;
+}
+
+.factura-detalle-pill.status-confirmado,
+.factura-detalle-pill.status-aprobado,
+.factura-detalle-pill.status-pagado {
+  background: rgba(90, 208, 107, 0.18);
+  color: #2f855a;
+}
+
+.factura-detalle-pill.status-rechazado {
+  background: rgba(245, 101, 101, 0.18);
+  color: #c53030;
+}
+
+.factura-detalle-pill.status-pendiente {
+  background: rgba(108, 123, 216, 0.18);
+  color: #4c5bb5;
+}
+
 .factura-detalle-actions {
   display: flex;
   justify-content: flex-end;
@@ -511,6 +533,17 @@
   margin-top: 0;
   margin-bottom: 16px;
   color: #1f2937;
+}
+
+.factura-detalle-actions-inline {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.factura-detalle-muted {
+  color: #9ca3af;
+  font-size: 0.85rem;
 }
 
 .factura-detalle-table {
@@ -621,6 +654,11 @@
   color: #4c5bb5;
 }
 
+.finanzas-pill.review {
+  background: rgba(241, 165, 65, 0.2);
+  color: #a05a1b;
+}
+
 .finanzas-config-loader,
 .finanzas-config-empty {
   padding: 36px 28px;
@@ -698,6 +736,33 @@
   display: flex;
   flex-direction: column;
   gap: 18px;
+}
+
+.qr-config-preview {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.qr-config-preview img {
+  max-width: 260px;
+  border-radius: 32px;
+  box-shadow: -10px -10px 22px #ffffff, 10px 10px 22px rgba(163, 177, 198, 0.4);
+}
+
+.qr-config-placeholder {
+  width: 220px;
+  height: 220px;
+  border-radius: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 16px;
+  background: linear-gradient(145deg, #eef2ff, #d8e3ff);
+  color: #6b7280;
+  font-weight: 600;
 }
 
 .finanzas-field {

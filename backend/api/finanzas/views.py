@@ -17,9 +17,12 @@ from ..models import (
     ExpensaConfig,
     Factura,
     FacturaDetalle,
+    FinanzasCodigoQR,
     MultaAplicada,
     MultaConfig,
+    NotificacionDirecta,
     Pago,
+    Residente,
     ResidenteVivienda,
     Usuario,
     Vivienda,
@@ -28,15 +31,20 @@ from .serializers import (
     ExpensaConfigSerializer,
     FacturaAdminSerializer,
     FacturaDetalleSerializer,
+    FinanzasQRSerializer,
     FacturaSerializer,
     MultaAplicadaSerializer,
     MultaConfigSerializer,
+    NotificacionDirectaSerializer,
     PagoSerializer,
 )
 
 
 VALID_PAYMENT_STATES = {"APROBADO", "CONFIRMADO", "COMPLETADO", "PAGADO"}
 FACTURA_PAID_STATES = {"PAGADO", "PAGADA", "CANCELADO", "CANCELADA"}
+FACTURA_REVISION_STATE = "REVISION"
+PAGO_REVISION_STATE = "REVISION"
+PAGO_RECHAZADO_STATE = "RECHAZADO"
 MONTH_SHORT_LABELS = {
     1: "ene",
     2: "feb",
@@ -119,6 +127,54 @@ def _prefetch_residentes_activos():
             fecha_hasta__isnull=True
         ),
         to_attr="_residentes_activos",
+    )
+
+
+def _obtener_residente_principal(vivienda):
+    relaciones = getattr(vivienda, "_residentes_activos", None)
+    if relaciones:
+        return relaciones[0].residente
+    relacion = (
+        ResidenteVivienda.objects.select_related("residente")
+        .filter(vivienda=vivienda, fecha_hasta__isnull=True)
+        .order_by("-fecha_desde")
+        .first()
+    )
+    return relacion.residente if relacion else None
+
+
+def _crear_notificacion_residente(
+    vivienda,
+    titulo,
+    mensaje,
+    *,
+    residente=None,
+    enviado_por=None,
+    factura=None,
+    pago=None,
+):
+    if residente is None:
+        residente = _obtener_residente_principal(vivienda)
+    if residente is None:
+        return None
+    if isinstance(enviado_por, Usuario):
+        usuario_envia = enviado_por
+    elif enviado_por is None:
+        usuario_envia = None
+    else:
+        if hasattr(enviado_por, "user") and not isinstance(enviado_por, Usuario):
+            usuario_envia = enviado_por
+        elif hasattr(enviado_por, "pk") and not isinstance(enviado_por, Usuario):
+            usuario_envia = Usuario.objects.filter(user=enviado_por).first()
+        else:
+            usuario_envia = Usuario.objects.filter(pk=enviado_por).first()
+    return NotificacionDirecta.objects.create(
+        residente=residente,
+        titulo=titulo,
+        mensaje=mensaje,
+        enviado_por=usuario_envia,
+        factura=factura,
+        pago=pago,
     )
 
 
@@ -575,6 +631,13 @@ def registrar_pago_manual(request, pk):
 
     fecha_pago_final = fecha_pago_date or timezone.localdate()
 
+    usuario_actor = Usuario.objects.filter(user=request.user).first()
+    comentario = request.data.get("comentario")
+    if comentario:
+        comentario = str(comentario)
+    else:
+        comentario = ""
+
     with transaction.atomic():
         pago = Pago.objects.create(
             factura=factura,
@@ -582,6 +645,8 @@ def registrar_pago_manual(request, pk):
             monto_pagado=monto_dec,
             estado="CONFIRMADO",
             referencia_externa=referencia,
+            registrado_por=usuario_actor,
+            comentario=comentario,
         )
 
         if fecha_pago_date:
@@ -619,6 +684,75 @@ def registrar_pago_manual(request, pk):
     return Response(data, status=status.HTTP_200_OK)
 
 
+@api_view(["GET", "POST", "DELETE"])
+@permission_classes([IsAuthenticated])
+def codigo_qr_admin(request):
+    queryset = FinanzasCodigoQR.objects.order_by("-actualizado_en")
+    actual = queryset.first()
+
+    if request.method == "GET":
+        if not actual:
+            return Response({"detail": "No existe un código QR configurado."}, status=404)
+        serializer = FinanzasQRSerializer(actual, context={"request": request})
+        return Response(serializer.data)
+
+    if request.method == "DELETE":
+        if not actual:
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        if actual.imagen:
+            actual.imagen.delete(save=False)
+        actual.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    archivo = request.FILES.get("archivo") or request.FILES.get("qr")
+    if not archivo:
+        return Response(
+            {"detail": "Debe adjuntar una imagen con el código QR."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    content_type = getattr(archivo, "content_type", "") or ""
+    if not content_type.lower().startswith("image/"):
+        return Response(
+            {"detail": "El archivo debe ser una imagen."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    descripcion = request.data.get("descripcion") or ""
+    if descripcion:
+        descripcion = str(descripcion)[:140]
+
+    usuario_actor = Usuario.objects.filter(user=request.user).first()
+
+    with transaction.atomic():
+        if actual:
+            if actual.imagen:
+                actual.imagen.delete(save=False)
+            actual.imagen = archivo
+            actual.descripcion = descripcion
+            actual.actualizado_por = usuario_actor
+            actual.save()
+        else:
+            actual = FinanzasCodigoQR.objects.create(
+                imagen=archivo,
+                descripcion=descripcion,
+                actualizado_por=usuario_actor,
+            )
+
+    serializer = FinanzasQRSerializer(actual, context={"request": request})
+    return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def codigo_qr_residente(request):
+    actual = FinanzasCodigoQR.objects.order_by("-actualizado_en").first()
+    if not actual:
+        return Response({"detail": "No existe un código QR disponible."}, status=404)
+    serializer = FinanzasQRSerializer(actual, context={"request": request})
+    return Response(serializer.data)
+
+
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def resumen_finanzas(request):
@@ -628,7 +762,9 @@ def resumen_finanzas(request):
         return Response({"detail": str(error)}, status=400)
 
     facturas_vivienda = Factura.objects.filter(vivienda=vivienda)
-    pendientes = facturas_vivienda.filter(estado__iexact="PENDIENTE")
+    pendientes = facturas_vivienda.filter(
+        estado__in=["PENDIENTE", FACTURA_REVISION_STATE]
+    )
 
     total_pendiente = pendientes.aggregate(total=Sum("monto"))['total'] or Decimal("0")
     factura_mas_antigua = pendientes.order_by("fecha_vencimiento", "fecha_emision", "periodo").first()
@@ -677,6 +813,194 @@ def detalle_factura(request, pk):
     data = {
         "factura": FacturaSerializer(factura).data,
         "pagos": PagoSerializer(pagos, many=True).data,
+    }
+    return Response(data)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def confirmar_pago_factura(request, pk):
+    try:
+        vivienda = _obtener_vivienda_actual(request.user)
+    except ValueError as error:
+        return Response({"detail": str(error)}, status=400)
+
+    factura = get_object_or_404(Factura, pk=pk, vivienda=vivienda)
+    estado_actual = (factura.estado or "").upper()
+    if estado_actual in FACTURA_PAID_STATES:
+        return Response(
+            {"detail": "La factura ya se encuentra registrada como pagada."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    if estado_actual == FACTURA_REVISION_STATE:
+        return Response(
+            {"detail": "Ya existe un pago en revisión para esta factura."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if factura.pagos.filter(estado__iexact=PAGO_REVISION_STATE).exists():
+        return Response(
+            {"detail": "Ya existe un pago en revisión para esta factura."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    monto_param = request.data.get("monto_pagado") or request.data.get("monto")
+    if monto_param in (None, ""):
+        monto_dec = Decimal(factura.monto)
+    else:
+        try:
+            monto_dec = Decimal(str(monto_param))
+        except (InvalidOperation, TypeError, ValueError):
+            return Response(
+                {"detail": "El monto ingresado no es válido."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+    if monto_dec <= Decimal("0"):
+        return Response(
+            {"detail": "El monto debe ser mayor a cero."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    referencia = request.data.get("referencia") or request.data.get("observaciones")
+    comentario = request.data.get("comentario")
+    if referencia:
+        referencia = str(referencia)
+    if comentario:
+        comentario = str(comentario)
+    else:
+        comentario = ""
+
+    usuario_registra = (
+        Usuario.objects.select_related("residente").filter(user=request.user).first()
+    )
+
+    with transaction.atomic():
+        pago = Pago.objects.create(
+            factura=factura,
+            metodo="QR",
+            monto_pagado=monto_dec,
+            estado=PAGO_REVISION_STATE,
+            referencia_externa=referencia,
+            registrado_por=usuario_registra,
+            comentario=comentario,
+        )
+        factura.estado = FACTURA_REVISION_STATE
+        factura.save(update_fields=["estado"])
+
+    residente_destino = None
+    if usuario_registra and hasattr(usuario_registra, "residente"):
+        residente_destino = usuario_registra.residente
+
+    _crear_notificacion_residente(
+        factura.vivienda,
+        "Pago en revisión",
+        "Tu comprobante fue enviado y está pendiente de validación del administrador.",
+        residente=residente_destino,
+        enviado_por=usuario_registra,
+        factura=factura,
+        pago=pago,
+    )
+
+    data = {
+        "detail": "Pago registrado y en revisión.",
+        "factura": FacturaSerializer(factura).data,
+        "pago": PagoSerializer(pago).data,
+    }
+    return Response(data, status=status.HTTP_202_ACCEPTED)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def resolver_pago_revision(request, factura_pk, pago_pk):
+    factura = get_object_or_404(Factura, pk=factura_pk)
+    pago = get_object_or_404(Pago, pk=pago_pk, factura=factura)
+
+    accion = (request.data.get("accion") or "").strip().lower()
+    if accion not in {"aprobar", "rechazar"}:
+        return Response(
+            {"detail": "La acción debe ser 'aprobar' o 'rechazar'."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    estado_pago = (pago.estado or "").upper()
+    if estado_pago not in {PAGO_REVISION_STATE, "PENDIENTE"} and not (
+        accion == "rechazar" and estado_pago == PAGO_RECHAZADO_STATE
+    ):
+        return Response(
+            {"detail": "El pago ya fue procesado."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    comentario = request.data.get("comentario")
+    if comentario:
+        comentario = str(comentario)
+    else:
+        comentario = ""
+
+    usuario_actor = (
+        Usuario.objects.select_related("residente").filter(user=request.user).first()
+    )
+
+    with transaction.atomic():
+        if accion == "aprobar":
+            Pago.objects.filter(pk=pago.pk).update(
+                estado="CONFIRMADO",
+                comentario=comentario,
+                registrado_por=pago.registrado_por or usuario_actor,
+                fecha_pago=timezone.now(),
+            )
+            pago.refresh_from_db()
+            factura.estado = "PAGADA"
+            factura.fecha_pago = timezone.localdate()
+            factura.save(update_fields=["estado", "fecha_pago"])
+            mensaje = "Tu pago fue confirmado y la factura quedó registrada como pagada."
+        else:
+            Pago.objects.filter(pk=pago.pk).update(
+                estado=PAGO_RECHAZADO_STATE,
+                comentario=comentario,
+                registrado_por=pago.registrado_por or usuario_actor,
+            )
+            pago.refresh_from_db()
+            factura.estado = "PENDIENTE"
+            factura.fecha_pago = None
+            factura.save(update_fields=["estado", "fecha_pago"])
+            mensaje = (
+                "El pago fue rechazado. "
+                + ("Motivo: " + comentario if comentario else "Revisa los datos e inténtalo nuevamente.")
+            )
+
+    residente_destino = None
+    if pago.registrado_por and hasattr(pago.registrado_por, "residente"):
+        residente_destino = pago.registrado_por.residente
+
+    _crear_notificacion_residente(
+        factura.vivienda,
+        "Actualización de pago",
+        mensaje,
+        residente=residente_destino,
+        enviado_por=usuario_actor,
+        factura=factura,
+        pago=pago,
+    )
+
+    factura_refrescada = (
+        Factura.objects.select_related("vivienda", "vivienda__condominio")
+        .prefetch_related(
+            _prefetch_residentes_activos(),
+            Prefetch(
+                "detalles",
+                queryset=FacturaDetalle.objects.order_by("tipo", "descripcion"),
+            ),
+            Prefetch("pagos", queryset=Pago.objects.order_by("-fecha_pago")),
+        )
+        .get(pk=factura.pk)
+    )
+
+    data = {
+        "factura": FacturaAdminSerializer(factura_refrescada).data,
+        "pagos": PagoSerializer(factura_refrescada.pagos.all(), many=True).data,
+        "pago": PagoSerializer(pago).data,
     }
     return Response(data)
 
@@ -769,6 +1093,93 @@ def multa_aplicada_detalle(request, pk):
             status=status.HTTP_400_BAD_REQUEST,
         )
     multa.delete()
+    return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+@api_view(["GET", "POST"])
+@permission_classes([IsAuthenticated])
+def notificaciones_directas_admin(request):
+    if request.method == "GET":
+        queryset = (
+            NotificacionDirecta.objects.select_related(
+                "residente",
+                "enviado_por__user",
+                "factura",
+                "pago",
+            )
+            .order_by("-creado_en")
+        )
+        residente_id = request.query_params.get("residente")
+        estado = request.query_params.get("estado")
+        if residente_id:
+            queryset = queryset.filter(residente_id=residente_id)
+        if estado:
+            queryset = queryset.filter(estado__iexact=estado)
+
+        limite = request.query_params.get("limit")
+        if limite:
+            try:
+                limite_int = max(1, min(int(limite), 200))
+                queryset = queryset[:limite_int]
+            except (TypeError, ValueError):
+                queryset = queryset[:100]
+        else:
+            queryset = queryset[:100]
+
+        serializer = NotificacionDirectaSerializer(queryset, many=True)
+        return Response(serializer.data)
+
+    serializer = NotificacionDirectaSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+
+    usuario_actor = Usuario.objects.filter(user=request.user).first()
+    notificacion = serializer.save(enviado_por=usuario_actor)
+    return Response(
+        NotificacionDirectaSerializer(notificacion).data,
+        status=status.HTTP_201_CREATED,
+    )
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def notificaciones_residente(request):
+    usuario = (
+        Usuario.objects.select_related("residente").filter(user=request.user).first()
+    )
+    if not usuario or not getattr(usuario, "residente", None):
+        return Response(
+            {"detail": "El usuario autenticado no tiene un residente asociado."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    queryset = (
+        NotificacionDirecta.objects.select_related("factura", "pago")
+        .filter(residente=usuario.residente)
+        .order_by("-creado_en")
+    )
+    serializer = NotificacionDirectaSerializer(queryset, many=True)
+    return Response(serializer.data)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def marcar_notificacion_leida(request, pk):
+    usuario = (
+        Usuario.objects.select_related("residente").filter(user=request.user).first()
+    )
+    if not usuario or not getattr(usuario, "residente", None):
+        return Response(
+            {"detail": "El usuario autenticado no tiene un residente asociado."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    notificacion = get_object_or_404(
+        NotificacionDirecta, pk=pk, residente=usuario.residente
+    )
+    if notificacion.estado != NotificacionDirecta.ESTADO_LEIDA:
+        NotificacionDirecta.objects.filter(pk=notificacion.pk).update(
+            estado=NotificacionDirecta.ESTADO_LEIDA
+        )
     return Response(status=status.HTTP_204_NO_CONTENT)
 
 

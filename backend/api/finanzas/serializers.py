@@ -5,9 +5,12 @@ from ..models import (
     ExpensaConfig,
     Factura,
     FacturaDetalle,
+    FinanzasCodigoQR,
     MultaAplicada,
     MultaConfig,
+    NotificacionDirecta,
     Pago,
+    Residente,
     ResidenteVivienda,
     Vivienda,
 )
@@ -174,6 +177,7 @@ class FacturaAdminSerializer(serializers.ModelSerializer):
 
 class PagoSerializer(serializers.ModelSerializer):
     factura_periodo = serializers.CharField(source="factura.periodo", read_only=True)
+    registrado_por = serializers.SerializerMethodField()
 
     class Meta:
         model = Pago
@@ -187,5 +191,76 @@ class PagoSerializer(serializers.ModelSerializer):
             "comprobante_url",
             "estado",
             "referencia_externa",
+            "registrado_por",
+            "comentario",
         ]
-        read_only_fields = ["fecha_pago"]
+        read_only_fields = ["fecha_pago", "registrado_por"]
+
+    def get_registrado_por(self, obj):
+        if obj.registrado_por and hasattr(obj.registrado_por, "user"):
+            return obj.registrado_por.user.get_full_name() or obj.registrado_por.user.username
+        vivienda = getattr(obj.factura, "vivienda", None)
+        if vivienda is not None:
+            residentes = getattr(vivienda, "_residentes_activos", None)
+            if residentes:
+                residente = residentes[0].residente
+                return f"{residente.nombres} {residente.apellidos}".strip()
+        relacion = (
+            ResidenteVivienda.objects.select_related("residente")
+            .filter(vivienda=obj.factura.vivienda, fecha_hasta__isnull=True)
+            .order_by("-fecha_desde")
+            .first()
+        )
+        if relacion:
+            return f"{relacion.residente.nombres} {relacion.residente.apellidos}".strip()
+        return None
+
+
+class FinanzasQRSerializer(serializers.ModelSerializer):
+    url = serializers.SerializerMethodField()
+    actualizado_por = serializers.SerializerMethodField()
+
+    class Meta:
+        model = FinanzasCodigoQR
+        fields = ["id", "descripcion", "url", "actualizado_en", "actualizado_por"]
+
+    def get_url(self, obj):
+        request = self.context.get("request") if self.context else None
+        if request:
+            return request.build_absolute_uri(obj.imagen.url)
+        return obj.imagen.url
+
+    def get_actualizado_por(self, obj):
+        if obj.actualizado_por and hasattr(obj.actualizado_por, "user"):
+            return obj.actualizado_por.user.get_full_name() or obj.actualizado_por.user.username
+        return None
+
+
+class NotificacionDirectaSerializer(serializers.ModelSerializer):
+    residente_nombre = serializers.SerializerMethodField()
+    enviado_por = serializers.SerializerMethodField()
+
+    class Meta:
+        model = NotificacionDirecta
+        fields = [
+            "id",
+            "titulo",
+            "mensaje",
+            "estado",
+            "creado_en",
+            "actualizado_en",
+            "residente",
+            "residente_nombre",
+            "enviado_por",
+            "factura",
+            "pago",
+        ]
+        read_only_fields = ["creado_en", "actualizado_en", "residente_nombre", "enviado_por"]
+
+    def get_residente_nombre(self, obj):
+        return f"{obj.residente.nombres} {obj.residente.apellidos}".strip()
+
+    def get_enviado_por(self, obj):
+        if obj.enviado_por and hasattr(obj.enviado_por, "user"):
+            return obj.enviado_por.user.get_full_name() or obj.enviado_por.user.username
+        return None
