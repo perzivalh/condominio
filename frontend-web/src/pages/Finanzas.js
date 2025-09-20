@@ -821,7 +821,7 @@ const QrConfigForm = ({ current, loading, error, onSubmit, onDelete, onCancel })
     setArchivo(null);
     setPreview(current?.url || "");
     setLocalError("");
-  }, [current?.id]);
+  }, [current]);
 
   useEffect(() => () => {
     if (preview && preview.startsWith("blob:")) {
@@ -948,7 +948,6 @@ function Finanzas() {
   const [actionLoading, setActionLoading] = useState(false);
   const [resolvingPagoId, setResolvingPagoId] = useState(null);
   const [qrConfig, setQrConfig] = useState(null);
-  const [qrLoading, setQrLoading] = useState(false);
   const [qrSaving, setQrSaving] = useState(false);
   const [qrError, setQrError] = useState("");
   const [qrMessage, setQrMessage] = useState("");
@@ -1038,6 +1037,23 @@ function Finanzas() {
     return fallbackMessage;
   }, []);
 
+  const loadSummary = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const response = await API.get("finanzas/admin/resumen/");
+      setSummary(response.data);
+    } catch (err) {
+      const detail =
+        err?.response?.data?.detail ||
+        err?.response?.data?.error ||
+        "No se pudo cargar el resumen financiero.";
+      setError(detail);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   const loadFacturas = useCallback(
     async (filtersOverride = null) => {
       const activeFilters = filtersOverride || facturasFiltersRef.current;
@@ -1066,7 +1082,6 @@ function Finanzas() {
   );
 
   const loadQrConfig = useCallback(async () => {
-    setQrLoading(true);
     setQrError("");
     try {
       const response = await API.get("finanzas/admin/codigo-qr/");
@@ -1077,8 +1092,6 @@ function Finanzas() {
       } else {
         setQrError(getErrorMessage(err, "No se pudo obtener el archivo QR actual."));
       }
-    } finally {
-      setQrLoading(false);
     }
   }, [getErrorMessage]);
 
@@ -1272,23 +1285,6 @@ function Finanzas() {
 
   const handleToggleFacturaFilters = useCallback(() => {
     setShowFacturaFilters((prev) => !prev);
-  }, []);
-
-  const loadSummary = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const response = await API.get("finanzas/admin/resumen/");
-      setSummary(response.data);
-    } catch (err) {
-      const detail =
-        err?.response?.data?.detail ||
-        err?.response?.data?.error ||
-        "No se pudo cargar el resumen financiero.";
-      setError(detail);
-    } finally {
-      setLoading(false);
-    }
   }, []);
 
   const loadConfigData = useCallback(

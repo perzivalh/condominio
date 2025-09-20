@@ -37,7 +37,7 @@ class NotificationService {
       headers: _headers(token),
     );
 
-    if (response.status_code != 200) {
+    if (response.statusCode != 200) {
       throw Exception('No se pudo obtener las notificaciones');
     }
 
@@ -59,7 +59,7 @@ class NotificationService {
       headers: _headers(token),
     );
 
-    if (response.status_code != 204) {
+    if (response.statusCode != 204) {
       throw Exception('No se pudo marcar la notificación como leída');
     }
   }

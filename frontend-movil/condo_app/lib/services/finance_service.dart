@@ -37,7 +37,7 @@ class FinanceService {
       headers: _headers(token),
     );
 
-    if (response.status_code != 200) {
+    if (response.statusCode != 200) {
       throw Exception('No se pudo obtener el resumen de finanzas');
     }
 
@@ -56,7 +56,7 @@ class FinanceService {
       headers: _headers(token),
     );
 
-    if (response.status_code != 200) {
+    if (response.statusCode != 200) {
       throw Exception('No se pudo obtener el historial de facturas');
     }
 
@@ -77,7 +77,7 @@ class FinanceService {
       headers: _headers(token),
     );
 
-    if (response.status_code != 200) {
+    if (response.statusCode != 200) {
       throw Exception('No se pudo obtener el detalle de la factura');
     }
 
@@ -96,11 +96,11 @@ class FinanceService {
       headers: _headers(token),
     );
 
-    if (response.status_code == 404) {
+    if (response.statusCode == 404) {
       return null;
     }
 
-    if (response.status_code != 200) {
+    if (response.statusCode != 200) {
       throw Exception('No se pudo obtener el código QR de pago');
     }
 
@@ -132,7 +132,7 @@ class FinanceService {
       body: jsonEncode(payload),
     );
 
-    if (response.status_code != 202) {
+    if (response.statusCode != 202) {
       throw Exception('No se pudo registrar el pago en revisión');
     }
   }
