@@ -1,10 +1,10 @@
 ﻿import 'package:flutter/material.dart';
 
 import '../core/app_colors.dart';
+import '../core/app_routes.dart';
 import '../models/resident_profile.dart';
 import '../services/auth_service.dart';
 import '../widgets/neumorphic.dart';
-import 'dashboard_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -67,14 +67,9 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   void _goToDashboard(ResidentSession session) {
-    Navigator.of(context).pushReplacement(
-      PageRouteBuilder(
-        pageBuilder: (_, __, ___) => DashboardPage(session: session),
-        transitionsBuilder: (_, animation, __, child) {
-          return FadeTransition(opacity: animation, child: child);
-        },
-        transitionDuration: const Duration(milliseconds: 400),
-      ),
+    Navigator.of(context).pushReplacementNamed(
+      AppRoutes.dashboard,
+      arguments: session,
     );
   }
 
