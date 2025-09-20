@@ -148,12 +148,14 @@ class FinanceService {
       _buildUri('finanzas/facturas/$facturaId/pdf/'),
       headers: {
         'Authorization': 'Bearer $token',
-        'Accept': 'application/pdf',
+        'Accept': 'application/pdf, application/octet-stream, */*',
       },
     );
 
     if (response.statusCode != 200) {
-      throw Exception('No se pudo descargar la factura.');
+      throw Exception(
+        'No se pudo descargar la factura. Código ${response.statusCode}.',
+      );
     }
 
     return response.bodyBytes;

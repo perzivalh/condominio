@@ -1,6 +1,9 @@
 ﻿import 'package:flutter/material.dart';
 
 import 'core/app_colors.dart';
+import 'core/app_routes.dart';
+import 'models/resident_profile.dart';
+import 'screens/dashboard_page.dart';
 import 'screens/login_page.dart';
 
 void main() {
@@ -30,7 +33,23 @@ class CondoApp extends StatelessWidget {
           bodyMedium: TextStyle(fontSize: 16),
         ),
       ),
-      home: const LoginPage(),
+      initialRoute: AppRoutes.login,
+      onGenerateRoute: (settings) {
+        switch (settings.name) {
+          case AppRoutes.login:
+            return MaterialPageRoute(builder: (_) => const LoginPage());
+          case AppRoutes.dashboard:
+            final args = settings.arguments;
+            if (args is ResidentSession) {
+              return MaterialPageRoute(
+                builder: (_) => DashboardPage(session: args),
+              );
+            }
+            return MaterialPageRoute(builder: (_) => const LoginPage());
+          default:
+            return MaterialPageRoute(builder: (_) => const LoginPage());
+        }
+      },
     );
   }
 }
