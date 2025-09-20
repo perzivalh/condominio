@@ -450,7 +450,7 @@ class _ProfileInfoCard extends StatelessWidget {
       _ProfileFieldData(
         label: 'ID de residente',
         value: residenteId,
-        icon: Icons.home_pin_outlined,
+        icon: Icons.home_outlined,
       ),
       _ProfileFieldData(
         label: 'Vivienda asignada',
