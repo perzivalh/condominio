@@ -115,7 +115,6 @@ class FacturaSerializer(serializers.ModelSerializer):
             "fecha_emision",
             "fecha_vencimiento",
             "fecha_pago",
-            "residentes",
         ]
         read_only_fields = [
             "fecha_emision",
