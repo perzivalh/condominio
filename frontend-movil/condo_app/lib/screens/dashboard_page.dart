@@ -106,6 +106,7 @@ class _DashboardPageState extends State<DashboardPage> {
           profile: profile,
           onLogout: _handleLogout,
           isLoggingOut: _isLoggingOut,
+          onSessionExpired: _handleSessionExpired,
         );
       case 0:
         return _ComingSoonContent(
@@ -182,6 +183,17 @@ class _DashboardPageState extends State<DashboardPage> {
         });
       }
     }
+  }
+
+  Future<void> _handleSessionExpired(String message) async {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(SnackBar(content: Text(message)));
+    await _authService.clearSession();
+    if (!mounted) return;
+    Navigator.of(context).pushNamedAndRemoveUntil(
+      AppRoutes.login,
+      (route) => false,
+    );
   }
 }
 
@@ -299,11 +311,13 @@ class _ProfileContent extends StatelessWidget {
     required this.profile,
     required this.onLogout,
     required this.isLoggingOut,
+    required this.onSessionExpired,
   });
 
   final ResidentProfile profile;
   final VoidCallback onLogout;
   final bool isLoggingOut;
+  final void Function(String message) onSessionExpired;
 
   @override
   Widget build(BuildContext context) {
@@ -357,14 +371,7 @@ class _ProfileContent extends StatelessWidget {
                 ),
                 const SizedBox(height: 20),
                 TextButton.icon(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Solicita el cambio de contraseña al administrador.'),
-                        duration: Duration(seconds: 3),
-                      ),
-                    );
-                  },
+                  onPressed: () => _showChangePasswordSheet(context),
                   icon: const Icon(Icons.lock_reset_outlined),
                   label: const Text('Cambiar contraseña'),
                   style: TextButton.styleFrom(
@@ -408,6 +415,29 @@ class _ProfileContent extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+
+  void _showChangePasswordSheet(BuildContext context) {
+    final messenger = ScaffoldMessenger.of(context);
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return ChangePasswordSheet(
+          onSuccess: (message) {
+            Navigator.of(sheetContext).pop();
+            messenger.showSnackBar(
+              SnackBar(content: Text(message)),
+            );
+          },
+          onSessionExpired: (message) {
+            Navigator.of(sheetContext).pop();
+            onSessionExpired(message);
+          },
+        );
+      },
     );
   }
 }
@@ -545,6 +575,298 @@ class _ProfileFieldData {
   final String label;
   final String value;
   final IconData icon;
+}
+
+class ChangePasswordSheet extends StatefulWidget {
+  const ChangePasswordSheet({
+    required this.onSuccess,
+    required this.onSessionExpired,
+  });
+
+  final void Function(String message) onSuccess;
+  final void Function(String message) onSessionExpired;
+
+  @override
+  State<ChangePasswordSheet> createState() => _ChangePasswordSheetState();
+}
+
+class _ChangePasswordSheetState extends State<ChangePasswordSheet> {
+  final _formKey = GlobalKey<FormState>();
+  final _currentController = TextEditingController();
+  final _newController = TextEditingController();
+  final _confirmController = TextEditingController();
+  final AuthService _authService = AuthService();
+
+  bool _obscureCurrent = true;
+  bool _obscureNew = true;
+  bool _obscureConfirm = true;
+  bool _isSubmitting = false;
+  String? _errorMessage;
+
+  @override
+  void dispose() {
+    _currentController.dispose();
+    _newController.dispose();
+    _confirmController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final form = _formKey.currentState;
+    if (form == null || !form.validate()) {
+      return;
+    }
+
+    if (_newController.text != _confirmController.text) {
+      setState(() {
+        _errorMessage = 'Las nuevas contraseñas deben coincidir.';
+      });
+      return;
+    }
+
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _isSubmitting = true;
+      _errorMessage = null;
+    });
+
+    try {
+      await _authService.changePassword(
+        currentPassword: _currentController.text,
+        newPassword: _newController.text,
+        confirmation: _confirmController.text,
+      );
+      widget.onSuccess('Contraseña actualizada con éxito.');
+    } on AuthException catch (error) {
+      final normalized = error.message.toLowerCase();
+      if (normalized.contains('sesión') && normalized.contains('expir')) {
+        widget.onSessionExpired(error.message);
+        return;
+      }
+      setState(() {
+        _errorMessage = error.message;
+      });
+    } catch (_) {
+      setState(() {
+        _errorMessage = 'No se pudo actualizar la contraseña. Intenta nuevamente.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final viewInsets = MediaQuery.of(context).viewInsets.bottom;
+    return Padding(
+      padding: EdgeInsets.only(bottom: viewInsets),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
+        decoration: const BoxDecoration(
+          color: AppColors.background,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.lock_outline, color: AppColors.primaryText),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Cambiar contraseña',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.primaryText,
+                        ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              _buildLabel('Contraseña actual'),
+              const SizedBox(height: 10),
+              NeumorphicInset(
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _currentController,
+                        obscureText: _obscureCurrent,
+                        decoration: const InputDecoration(
+                          border: InputBorder.none,
+                          hintText: 'Ingresa tu contraseña actual',
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Este campo es obligatorio.';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () {
+                        setState(() {
+                          _obscureCurrent = !_obscureCurrent;
+                        });
+                      },
+                      icon: Icon(
+                        _obscureCurrent
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
+                        color: AppColors.secondaryText,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
+              _buildLabel('Nueva contraseña'),
+              const SizedBox(height: 10),
+              NeumorphicInset(
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _newController,
+                        obscureText: _obscureNew,
+                        decoration: const InputDecoration(
+                          border: InputBorder.none,
+                          hintText: 'Crea una nueva contraseña',
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Este campo es obligatorio.';
+                          }
+                          if (value.length < 8) {
+                            return 'Debe tener al menos 8 caracteres.';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () {
+                        setState(() {
+                          _obscureNew = !_obscureNew;
+                        });
+                      },
+                      icon: Icon(
+                        _obscureNew
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
+                        color: AppColors.secondaryText,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
+              _buildLabel('Confirmar contraseña'),
+              const SizedBox(height: 10),
+              NeumorphicInset(
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _confirmController,
+                        obscureText: _obscureConfirm,
+                        decoration: const InputDecoration(
+                          border: InputBorder.none,
+                          hintText: 'Repite la nueva contraseña',
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Este campo es obligatorio.';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () {
+                        setState(() {
+                          _obscureConfirm = !_obscureConfirm;
+                        });
+                      },
+                      icon: Icon(
+                        _obscureConfirm
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
+                        color: AppColors.secondaryText,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: _isSubmitting ? null : _submit,
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                  ),
+                  child: _isSubmitting
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(strokeWidth: 2.4),
+                        )
+                      : const Text(
+                          'Guardar cambios',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 16,
+                          ),
+                        ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 250),
+                child: _errorMessage == null
+                    ? const SizedBox.shrink()
+                    : Text(
+                        _errorMessage!,
+                        key: ValueKey(_errorMessage),
+                        style: const TextStyle(
+                          color: Colors.redAccent,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLabel(String text) {
+    return Text(
+      text,
+      style: const TextStyle(
+        color: AppColors.primaryText,
+        fontWeight: FontWeight.w600,
+      ),
+    );
+  }
 }
 
 class _HeaderRow extends StatelessWidget {

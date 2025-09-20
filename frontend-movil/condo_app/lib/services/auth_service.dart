@@ -29,6 +29,74 @@ class AuthService {
     await _storage.delete(key: refreshTokenKey);
   }
 
+  Future<void> requestPasswordRecovery(String email) async {
+    final uri = _buildUri('recuperar-password/');
+    final response = await _client.post(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'correo': email}),
+    );
+
+    if (response.statusCode != 200) {
+      throw AuthException(_messageFromResponse(response));
+    }
+  }
+
+  Future<void> resetPassword({
+    required String email,
+    required String token,
+    required String newPassword,
+  }) async {
+    final uri = _buildUri('reset-password/');
+    final response = await _client.post(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'correo': email,
+        'token': token,
+        'nueva_password': newPassword,
+      }),
+    );
+
+    if (response.statusCode != 200) {
+      throw AuthException(_messageFromResponse(response));
+    }
+  }
+
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+    required String confirmation,
+  }) async {
+    final token = await _storage.read(key: accessTokenKey);
+    if (token == null) {
+      throw AuthException('No existe una sesión activa. Inicia sesión nuevamente.');
+    }
+
+    final uri = _buildUri('cambiar-password/');
+    final response = await _client.post(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'password_actual': currentPassword,
+        'nueva_password': newPassword,
+        'confirmacion': confirmation,
+      }),
+    );
+
+    if (response.statusCode == 401) {
+      await clearSession();
+      throw AuthException('Tu sesión expiró. Inicia sesión nuevamente.');
+    }
+
+    if (response.statusCode != 200) {
+      throw AuthException(_messageFromResponse(response));
+    }
+  }
+
   Future<TokenPair> _requestTokens(String username, String password) async {
     final uri = _buildUri('token/');
     final response = await _client.post(
@@ -160,5 +228,22 @@ class AuthService {
   Uri _buildUri(String path) {
     final normalizedBase = apiBaseUrl.endsWith('/') ? apiBaseUrl : '$apiBaseUrl/';
     return Uri.parse('$normalizedBase$path');
+  }
+
+  String _messageFromResponse(http.Response response) {
+    try {
+      final data = jsonDecode(response.body);
+      if (data is Map<String, dynamic>) {
+        for (final key in ['error', 'mensaje', 'detail']) {
+          final value = data[key];
+          if (value is String && value.trim().isNotEmpty) {
+            return value;
+          }
+        }
+      }
+    } catch (_) {
+      // Ignorar errores de parseo y devolver mensaje genérico.
+    }
+    return 'Ocurrió un error inesperado (${response.statusCode}).';
   }
 }

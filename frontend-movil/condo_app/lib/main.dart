@@ -3,6 +3,8 @@
 import 'core/app_colors.dart';
 import 'core/app_routes.dart';
 import 'models/resident_profile.dart';
+import 'screens/auth/forgot_password_page.dart';
+import 'screens/auth/reset_password_page.dart';
 import 'screens/dashboard_page.dart';
 import 'screens/login_page.dart';
 
@@ -38,6 +40,13 @@ class CondoApp extends StatelessWidget {
         switch (settings.name) {
           case AppRoutes.login:
             return MaterialPageRoute(builder: (_) => const LoginPage());
+          case AppRoutes.forgotPassword:
+            return MaterialPageRoute(builder: (_) => const ForgotPasswordPage());
+          case AppRoutes.resetPassword:
+            return MaterialPageRoute(
+              builder: (_) => const ResetPasswordPage(),
+              settings: settings,
+            );
           case AppRoutes.dashboard:
             final args = settings.arguments;
             if (args is ResidentSession) {

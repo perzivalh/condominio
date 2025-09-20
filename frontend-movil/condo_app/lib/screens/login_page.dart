@@ -180,14 +180,7 @@ class _LoginPageState extends State<LoginPage> {
                   alignment: Alignment.centerRight,
                   child: TextButton(
                     onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Pendiente implementar recuperacion de contrasena.',
-                          ),
-                          duration: Duration(seconds: 2),
-                        ),
-                      );
+                      Navigator.of(context).pushNamed(AppRoutes.forgotPassword);
                     },
                     style: TextButton.styleFrom(
                       foregroundColor: AppColors.secondaryText,

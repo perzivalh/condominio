@@ -3,12 +3,20 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from django.utils import timezone
-from django.contrib.auth.hashers import make_password
 import uuid, datetime
 from django.contrib.auth.models import User
 
 
-from .models import Rol, Usuario, Vivienda, Residente, Vehiculo, Aviso, TokenRecuperacion, Condominio
+from .models import (
+    Rol,
+    Usuario,
+    Vivienda,
+    Residente,
+    Vehiculo,
+    Aviso,
+    TokenRecuperacion,
+    Condominio,
+)
 from .serializers import (
     RolSerializer, UsuarioSerializer, ViviendaSerializer,
     ResidenteSerializer, VehiculoSerializer, AvisoSerializer, CondominioSerializer
@@ -142,7 +150,7 @@ def recuperar_password(request):
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def reset_password(request):
-    correo = request.data.get("correo")
+    correo = request.data.get("correo") or request.data.get("email")
     codigo = request.data.get("token")
     nueva_pass = request.data.get("nueva_password")
 
@@ -150,24 +158,61 @@ def reset_password(request):
         return Response({"error": "Datos incompletos"}, status=status.HTTP_400_BAD_REQUEST)
 
     try:
-        usuario = Usuario.objects.get(correo=correo)
-        token_obj = TokenRecuperacion.objects.filter(
-            usuario=usuario, codigo=codigo, usado=False
-        ).first()
-
-        if not token_obj:
-            return Response({"error": "Token inválido"}, status=status.HTTP_400_BAD_REQUEST)
-
-        if token_obj.expiracion < timezone.now():
-            return Response({"error": "Token expirado"}, status=status.HTTP_400_BAD_REQUEST)
-
-        usuario.password_hash = make_password(nueva_pass)
-        usuario.save()
-
-        token_obj.usado = True
-        token_obj.save()
-
-        return Response({"mensaje": "Contraseña actualizada con éxito"}, status=status.HTTP_200_OK)
-
+        usuario = Usuario.objects.get(user__email=correo)
     except Usuario.DoesNotExist:
         return Response({"error": "Usuario no encontrado"}, status=status.HTTP_404_NOT_FOUND)
+
+    token_obj = TokenRecuperacion.objects.filter(
+        usuario=usuario, codigo=codigo, usado=False
+    ).first()
+
+    if not token_obj:
+        return Response({"error": "Token inválido"}, status=status.HTTP_400_BAD_REQUEST)
+
+    if token_obj.expiracion < timezone.now():
+        return Response({"error": "Token expirado"}, status=status.HTTP_400_BAD_REQUEST)
+
+    auth_user = usuario.user
+    auth_user.set_password(nueva_pass)
+    auth_user.save(update_fields=["password"])
+
+    token_obj.usado = True
+    token_obj.save(update_fields=["usado"])
+
+    # invalidar otros tokens pendientes
+    TokenRecuperacion.objects.filter(usuario=usuario, usado=False).exclude(pk=token_obj.pk).update(usado=True)
+
+    return Response({"mensaje": "Contraseña actualizada con éxito"}, status=status.HTTP_200_OK)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def cambiar_password(request):
+    actual = request.data.get("password_actual")
+    nueva = request.data.get("nueva_password")
+    confirmacion = request.data.get("confirmacion") or request.data.get("confirmar_password")
+
+    if not actual or not nueva or not confirmacion:
+        return Response({"error": "Datos incompletos"}, status=status.HTTP_400_BAD_REQUEST)
+
+    if nueva != confirmacion:
+        return Response({"error": "Las contraseñas no coinciden"}, status=status.HTTP_400_BAD_REQUEST)
+
+    user = request.user
+
+    if not user.check_password(actual):
+        return Response({"error": "La contraseña actual es incorrecta"}, status=status.HTTP_400_BAD_REQUEST)
+
+    user.set_password(nueva)
+    user.save(update_fields=["password"])
+
+    try:
+        usuario = Usuario.objects.get(user=user)
+        usuario.updated_at = timezone.now()
+        usuario.save(update_fields=["updated_at"])
+    except Usuario.DoesNotExist:
+        pass
+
+    TokenRecuperacion.objects.filter(usuario__user=user, usado=False).update(usado=True)
+
+    return Response({"mensaje": "Contraseña actualizada con éxito"}, status=status.HTTP_200_OK)

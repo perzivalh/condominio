@@ -2,9 +2,17 @@
 from rest_framework.routers import DefaultRouter
 
 from .views import (
-    RolViewSet, UsuarioViewSet, ViviendaViewSet, ResidenteViewSet,
-    VehiculoViewSet, AvisoViewSet, CondominioViewSet,
-    recuperar_password, reset_password, perfil
+    RolViewSet,
+    UsuarioViewSet,
+    ViviendaViewSet,
+    ResidenteViewSet,
+    VehiculoViewSet,
+    AvisoViewSet,
+    CondominioViewSet,
+    recuperar_password,
+    reset_password,
+    perfil,
+    cambiar_password,
 )
 from .finanzas.views import (
     catalogo_multa_detalle,
@@ -45,6 +53,7 @@ urlpatterns = [
     path('', include(router.urls)),
     path('recuperar-password/', recuperar_password),
     path('reset-password/', reset_password),
+    path('cambiar-password/', cambiar_password),
     path('perfil/', perfil),
     path('finanzas/resumen/', resumen_finanzas),
     path('finanzas/admin/resumen/', resumen_finanzas_admin),

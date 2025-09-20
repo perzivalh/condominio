@@ -161,6 +161,21 @@
   color: #38bdf8;
 }
 
+.auth-message {
+  margin: 0;
+  font-size: 13px;
+  letter-spacing: 0.4px;
+  text-align: center;
+}
+
+.auth-message--error {
+  color: #f87171;
+}
+
+.auth-message--success {
+  color: #4ade80;
+}
+
 @media (max-width: 520px) {
   .login-card {
     padding: 32px 24px;

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import VisibilityOffOutlinedIcon from "@mui/icons-material/VisibilityOffOutlined";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import API from "../api/axiosConfig";
@@ -87,7 +87,7 @@ function Login({ onLogin }) {
           </button>
         </form>
         <div className="login-footer">
-          <a href="/forgot-password">¿Olvidaste tu contraseña?</a>
+          <Link to="/forgot-password">¿Olvidaste tu contraseña?</Link>
         </div>
       </div>
     </div>
