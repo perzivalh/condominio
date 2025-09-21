@@ -1098,6 +1098,7 @@ class _ModuleCard extends StatelessWidget {
       clipBehavior: Clip.none,
       children: [
         NeumorphicSurface(
+          padding: EdgeInsets.zero,
           borderRadius: BorderRadius.circular(26),
           child: Material(
             color: Colors.transparent,
