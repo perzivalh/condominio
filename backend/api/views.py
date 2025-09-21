@@ -7,7 +7,9 @@ from django.contrib.auth.models import User
 from django.core.mail import send_mail
 from django.utils import timezone
 from rest_framework import status, viewsets
-from rest_framework.decorators import api_view, permission_classes
+from django.db import transaction
+from django.shortcuts import get_object_or_404
+from rest_framework.decorators import api_view, permission_classes, action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
@@ -21,11 +23,14 @@ from .models import (
     Aviso,
     TokenRecuperacion,
     Condominio,
+    NotificacionUsuario,
 )
 from .serializers import (
     RolSerializer, UsuarioSerializer, ViviendaSerializer,
-    ResidenteSerializer, VehiculoSerializer, AvisoSerializer, CondominioSerializer
+    ResidenteSerializer, VehiculoSerializer, AvisoSerializer, CondominioSerializer,
+    AvisoUsuarioSerializer,
 )
+from .permissions import IsAdmin, IsResidente
 
 # --- ROLES ---
 class RolViewSet(viewsets.ModelViewSet):
@@ -88,18 +93,106 @@ class VehiculoViewSet(viewsets.ModelViewSet):
 
 # --- AVISOS ---
 class AvisoViewSet(viewsets.ModelViewSet):
-    queryset = Aviso.objects.all()
+    queryset = Aviso.objects.all().order_by("-fecha_publicacion")
     serializer_class = AvisoSerializer
     permission_classes = [IsAuthenticated]
 
     def perform_create(self, serializer):
-    # Buscar el perfil Usuario vinculado al auth_user que está logueado
+        # Buscar el perfil Usuario vinculado al auth_user que está logueado
         try:
             usuario = Usuario.objects.get(user=self.request.user)
         except Usuario.DoesNotExist:
             raise ValueError("No existe perfil de Usuario vinculado al auth_user actual")
 
         serializer.save(autor_usuario=usuario)
+
+    @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated, IsAdmin])
+    def publicar(self, request, pk=None):
+        aviso = self.get_object()
+
+        with transaction.atomic():
+            aviso.estado = 1
+            aviso.fecha_publicacion = timezone.now()
+            aviso.save(update_fields=["estado", "fecha_publicacion"])
+
+            residentes_qs = (
+                Usuario.objects.filter(
+                    estado=1,
+                    user__isnull=False,
+                    usuariorol__rol__nombre="RES",
+                    usuariorol__estado=1,
+                )
+                .select_related("user")
+                .distinct()
+            )
+
+            existentes = set(
+                NotificacionUsuario.objects.filter(aviso=aviso).values_list("usuario_id", flat=True)
+            )
+
+            ahora = timezone.now()
+            nuevos = [
+                NotificacionUsuario(aviso=aviso, usuario=usuario, fecha_envio=ahora)
+                for usuario in residentes_qs
+                if usuario.id not in existentes
+            ]
+
+            if nuevos:
+                NotificacionUsuario.objects.bulk_create(nuevos)
+
+        total_destinatarios = NotificacionUsuario.objects.filter(aviso=aviso).count()
+        return Response(
+            {
+                "detail": "Aviso publicado correctamente.",
+                "nuevos_destinatarios": len(nuevos),
+                "total_destinatarios": total_destinatarios,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    @action(
+        detail=False,
+        methods=["get"],
+        permission_classes=[IsAuthenticated, IsResidente],
+        url_path="mis",
+    )
+    def avisos_residente(self, request):
+        usuario = Usuario.objects.filter(user=request.user).select_related("user").first()
+        if not usuario:
+            return Response(
+                {"detail": "El usuario autenticado no tiene un perfil válido."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        queryset = (
+            NotificacionUsuario.objects.select_related("aviso", "aviso__autor_usuario__user")
+            .filter(usuario=usuario, aviso__estado=1)
+            .order_by("-aviso__fecha_publicacion", "-fecha_envio")
+        )
+        serializer = AvisoUsuarioSerializer(queryset, many=True)
+        return Response(serializer.data)
+
+    @action(
+        detail=True,
+        methods=["post"],
+        permission_classes=[IsAuthenticated, IsResidente],
+        url_path="marcar-leido",
+    )
+    def marcar_leido(self, request, pk=None):
+        usuario = Usuario.objects.filter(user=request.user).first()
+        if not usuario:
+            return Response(
+                {"detail": "El usuario autenticado no tiene un perfil válido."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        notificacion = get_object_or_404(
+            NotificacionUsuario, aviso_id=pk, usuario=usuario
+        )
+        if not notificacion.fecha_lectura:
+            notificacion.fecha_lectura = timezone.now()
+            notificacion.save(update_fields=["fecha_lectura"])
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 # --- PERFIL ---
 @api_view(["GET"])

@@ -7,6 +7,7 @@ import "./GestionCrud.css";
 const initialForm = {
   titulo: "",
   contenido: "",
+  estado: 0,
 };
 
 function Avisos() {
@@ -22,13 +23,21 @@ function Avisos() {
   const [activeId, setActiveId] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [publishingIds, setPublishingIds] = useState([]);
 
   const loadAvisos = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
       const res = await API.get("avisos/");
-      setAvisos(res.data);
+      const sorted = Array.isArray(res.data)
+        ? [...res.data].sort((a, b) => {
+            const fechaA = a?.fecha_publicacion ? new Date(a.fecha_publicacion).getTime() : 0;
+            const fechaB = b?.fecha_publicacion ? new Date(b.fecha_publicacion).getTime() : 0;
+            return fechaB - fechaA;
+          })
+        : [];
+      setAvisos(sorted);
     } catch (err) {
       console.error("Error al cargar avisos", err);
       setError("No se pudieron cargar los avisos. Intenta nuevamente más tarde.");
@@ -43,7 +52,7 @@ function Avisos() {
 
   const openCreateModal = () => {
     if (!canManage) return;
-    setFormData(initialForm);
+    setFormData({ ...initialForm });
     setActiveId(null);
     setModalState({ open: true, mode: "create" });
   };
@@ -54,13 +63,14 @@ function Avisos() {
     setFormData({
       titulo: aviso.titulo || "",
       contenido: aviso.contenido || "",
+      estado: typeof aviso.estado === "number" ? aviso.estado : 0,
     });
     setModalState({ open: true, mode: "edit" });
   };
 
   const closeModal = () => {
     setModalState({ open: false, mode: "create" });
-    setFormData(initialForm);
+    setFormData({ ...initialForm });
     setActiveId(null);
     setIsSubmitting(false);
   };
@@ -73,7 +83,7 @@ function Avisos() {
       const payload = {
         titulo: formData.titulo.trim(),
         contenido: formData.contenido.trim(),
-        estado: 1,
+        estado: typeof formData.estado === "number" ? formData.estado : 0,
         visibilidad: 0,
       };
 
@@ -102,6 +112,30 @@ function Avisos() {
       console.error("Error al eliminar el aviso", err);
       alert("No se pudo eliminar el aviso. Intenta nuevamente.");
     }
+  };
+
+  const handlePublish = async (aviso) => {
+    if (!canManage || !aviso?.id) return;
+    if (publishingIds.includes(aviso.id)) return;
+
+    setPublishingIds((prev) => [...prev, aviso.id]);
+    try {
+      const res = await API.post(`avisos/${aviso.id}/publicar/`);
+      if (res?.data?.detail) {
+        alert(res.data.detail);
+      }
+      await loadAvisos();
+    } catch (err) {
+      console.error("Error al publicar el aviso", err);
+      alert("No se pudo publicar el aviso. Intenta nuevamente.");
+    } finally {
+      setPublishingIds((prev) => prev.filter((item) => item !== aviso.id));
+    }
+  };
+
+  const formatEstado = (estado) => {
+    if (estado === 1) return "Publicado";
+    return "Borrador";
   };
 
   const formatFecha = (fecha) => {
@@ -175,6 +209,7 @@ function Avisos() {
                   <th>Título</th>
                   <th>Contenido</th>
                   <th>Fecha de publicación</th>
+                  <th>Estado</th>
                   {canManage && <th className="gestion-col-actions">Acciones</th>}
                 </tr>
               </thead>
@@ -184,9 +219,22 @@ function Avisos() {
                     <td>{aviso.titulo}</td>
                     <td className="gestion-table-text">{aviso.contenido}</td>
                     <td>{formatFecha(aviso.fecha_publicacion)}</td>
+                    <td>{formatEstado(aviso.estado)}</td>
                     {canManage && (
                       <td>
                         <div className="gestion-row-actions">
+                          <button
+                            type="button"
+                            className="gbutton gbutton--primary"
+                            onClick={() => handlePublish(aviso)}
+                            disabled={publishingIds.includes(aviso.id) || aviso.estado === 1}
+                          >
+                            {publishingIds.includes(aviso.id)
+                              ? "Publicando..."
+                              : aviso.estado === 1
+                              ? "Publicado"
+                              : "Publicar"}
+                          </button>
                           <button
                             type="button"
                             className="gbutton gbutton--ghost"
