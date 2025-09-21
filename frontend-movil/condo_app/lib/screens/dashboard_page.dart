@@ -1099,7 +1099,6 @@ class _ModuleCard extends StatelessWidget {
       children: [
         NeumorphicSurface(
           borderRadius: BorderRadius.circular(26),
-          padding: EdgeInsets.zero,
           child: Material(
             color: Colors.transparent,
             borderRadius: BorderRadius.circular(26),
@@ -1131,8 +1130,8 @@ class _ModuleCard extends StatelessWidget {
         ),
         if (showBadge)
           Positioned(
-            right: 26,
-            top: 22,
+            right: 20,
+            top: 18,
             child: Container(
               width: 14,
               height: 14,
