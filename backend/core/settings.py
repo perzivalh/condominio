@@ -118,20 +118,63 @@ SIMPLE_JWT = {
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
 }
 
-# ⚡ CORS (para React en Vercel)
+# ⚡ CORS (para React en Vercel y desarrollo local)
 CORS_ALLOW_ALL_ORIGINS = False
 
 
-# CSRF y CORS (para que el admin acepte el dominio de Railway)
-CSRF_TRUSTED_ORIGINS = [
+def _split_origins(value: str) -> list[str]:
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
+_base_cors_origins = [
     "https://condominio-peach.vercel.app",
     "https://condominio-production.up.railway.app",
 ]
 
-CORS_ALLOWED_ORIGINS = [
+_extra_cors_origins = os.environ.get("CORS_EXTRA_ORIGINS", "")
+if _extra_cors_origins:
+    _base_cors_origins.extend(_split_origins(_extra_cors_origins))
+
+if DEBUG:
+    _base_cors_origins.extend(
+        [
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+        ]
+    )
+
+
+def _dedupe(items: list[str]) -> list[str]:
+    # `dict.fromkeys` preserva el orden de inserción y elimina duplicados.
+    return list(dict.fromkeys(items))
+
+
+CORS_ALLOWED_ORIGINS = _dedupe(_base_cors_origins)
+
+
+# CSRF
+_base_csrf_trusted = [
     "https://condominio-peach.vercel.app",
     "https://condominio-production.up.railway.app",
 ]
+
+_extra_csrf_trusted = os.environ.get("CSRF_EXTRA_TRUSTED_ORIGINS", "")
+if _extra_csrf_trusted:
+    _base_csrf_trusted.extend(_split_origins(_extra_csrf_trusted))
+
+if DEBUG:
+    _base_csrf_trusted.extend(
+        [
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+        ]
+    )
+
+CSRF_TRUSTED_ORIGINS = _dedupe(_base_csrf_trusted)
 
 # Email
 EMAIL_BACKEND = os.environ.get("EMAIL_BACKEND")
@@ -148,9 +191,18 @@ _raw_password = (
 )
 EMAIL_HOST_PASSWORD = _raw_password.replace(" ", "")
 
+SENDGRID_API_KEY = os.environ.get("SENDGRID_API_KEY", "").strip()
+if SENDGRID_API_KEY:
+    # SendGrid usa "apikey" como usuario SMTP y la API key como contraseña.
+    EMAIL_HOST_PASSWORD = SENDGRID_API_KEY
+    if not EMAIL_HOST_USER:
+        EMAIL_HOST_USER = os.environ.get("SENDGRID_USERNAME", "apikey")
+
 EMAIL_HOST = os.environ.get("EMAIL_HOST", "")
 if not EMAIL_HOST and EMAIL_HOST_USER.endswith("@gmail.com"):
     EMAIL_HOST = "smtp.gmail.com"
+elif not EMAIL_HOST and SENDGRID_API_KEY:
+    EMAIL_HOST = "smtp.sendgrid.net"
 
 EMAIL_USE_SSL = os.environ.get("EMAIL_USE_SSL", "False") == "True"
 EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "True") == "True"
