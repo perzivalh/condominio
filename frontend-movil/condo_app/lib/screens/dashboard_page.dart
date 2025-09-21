@@ -1027,52 +1027,56 @@ class _ModuleGrid extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final itemHeight = (constraints.maxHeight - 24) / 2;
-        return Column(
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: _ModuleCard(
-                    data: _modules[0],
-                    height: itemHeight,
-                    onTap: onModuleTap,
-                    showBadge: modulesWithBadge.contains(_modules[0].label),
+        return SizedBox(
+          width: double.infinity,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: _ModuleCard(
+                      data: _modules[0],
+                      height: itemHeight,
+                      onTap: onModuleTap,
+                      showBadge: modulesWithBadge.contains(_modules[0].label),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 18),
-                Expanded(
-                  child: _ModuleCard(
-                    data: _modules[1],
-                    height: itemHeight,
-                    onTap: onModuleTap,
-                    showBadge: modulesWithBadge.contains(_modules[1].label),
+                  const SizedBox(width: 18),
+                  Expanded(
+                    child: _ModuleCard(
+                      data: _modules[1],
+                      height: itemHeight,
+                      onTap: onModuleTap,
+                      showBadge: modulesWithBadge.contains(_modules[1].label),
+                    ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 18),
-            Row(
-              children: [
-                Expanded(
-                  child: _ModuleCard(
-                    data: _modules[2],
-                    height: itemHeight,
-                    onTap: onModuleTap,
-                    showBadge: modulesWithBadge.contains(_modules[2].label),
+                ],
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Expanded(
+                    child: _ModuleCard(
+                      data: _modules[2],
+                      height: itemHeight,
+                      onTap: onModuleTap,
+                      showBadge: modulesWithBadge.contains(_modules[2].label),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 18),
-                Expanded(
-                  child: _ModuleCard(
-                    data: _modules[3],
-                    height: itemHeight,
-                    onTap: onModuleTap,
-                    showBadge: modulesWithBadge.contains(_modules[3].label),
+                  const SizedBox(width: 18),
+                  Expanded(
+                    child: _ModuleCard(
+                      data: _modules[3],
+                      height: itemHeight,
+                      onTap: onModuleTap,
+                      showBadge: modulesWithBadge.contains(_modules[3].label),
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ],
+                ],
+              ),
+            ],
+          ),
         );
       },
     );
