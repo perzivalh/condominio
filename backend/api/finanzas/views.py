@@ -1,16 +1,17 @@
 from calendar import monthrange
 from datetime import date, datetime, time
 from decimal import Decimal, InvalidOperation
+import mimetypes
 
 from django.db import transaction
-from django.db.models import Prefetch, Q, Sum
+from django.db.models import Exists, OuterRef, Prefetch, Q, Sum
 from django.db.models.functions import TruncMonth, Upper
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
-from django.http import HttpResponse
+from django.http import FileResponse, Http404, HttpResponse
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from ..models import (
@@ -304,10 +305,14 @@ def _generar_facturas_para_periodo(periodo):
     fecha_vencimiento = date(year, month, last_day)
 
     expensas_map = _expensa_config_por_bloque()
+    residentes_activos = ResidenteVivienda.objects.filter(
+        vivienda=OuterRef("pk"), fecha_hasta__isnull=True
+    )
+
     viviendas = (
         Vivienda.objects.select_related("condominio")
-        .filter(estado=1, residentevivienda__fecha_hasta__isnull=True)
-        .distinct()
+        .annotate(tiene_residentes_activos=Exists(residentes_activos))
+        .filter(estado=1, tiene_residentes_activos=True)
     )
 
     resumen = {"creadas": 0, "actualizadas": 0, "sin_cambios": 0}
@@ -755,6 +760,34 @@ def codigo_qr_residente(request):
         return Response({"detail": "No existe un código QR disponible."}, status=404)
     serializer = FinanzasQRSerializer(actual, context={"request": request})
     return Response(serializer.data)
+
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def codigo_qr_publico(request):
+    actual = FinanzasCodigoQR.objects.order_by("-actualizado_en").first()
+    if not actual or not actual.imagen:
+        raise Http404("No existe un código QR configurado.")
+
+    try:
+        archivo = actual.imagen.open("rb")
+    except FileNotFoundError as exc:
+        raise Http404("El archivo del código QR no está disponible.") from exc
+
+    content_type, _ = mimetypes.guess_type(actual.imagen.name)
+    response = FileResponse(
+        archivo,
+        content_type=content_type or "application/octet-stream",
+        as_attachment=False,
+    )
+    filename = actual.imagen.name.rsplit("/", 1)[-1]
+    response["Content-Disposition"] = f'inline; filename="{filename}"'
+    response["Cache-Control"] = "no-store"
+    if hasattr(actual.imagen, "size"):
+        response["Content-Length"] = actual.imagen.size
+    response["Cross-Origin-Resource-Policy"] = "cross-origin"
+    response["Access-Control-Allow-Origin"] = "*"
+    return response
 
 
 @api_view(["GET"])

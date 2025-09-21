@@ -1,4 +1,5 @@
-﻿from rest_framework import serializers
+from django.urls import reverse
+from rest_framework import serializers
 
 from ..models import (
     Condominio,
@@ -218,17 +219,39 @@ class PagoSerializer(serializers.ModelSerializer):
 
 class FinanzasQRSerializer(serializers.ModelSerializer):
     url = serializers.SerializerMethodField()
+    imagen = serializers.SerializerMethodField()
     actualizado_por = serializers.SerializerMethodField()
 
     class Meta:
         model = FinanzasCodigoQR
-        fields = ["id", "descripcion", "url", "actualizado_en", "actualizado_por"]
+        fields = [
+            "id",
+            "descripcion",
+            "url",
+            "imagen",
+            "actualizado_en",
+            "actualizado_por",
+        ]
 
     def get_url(self, obj):
+        return self._build_public_url(obj)
+
+    def get_imagen(self, obj):
+        return self._build_public_url(obj)
+
+    def _build_public_url(self, obj):
+        if not obj.imagen:
+            return None
+
         request = self.context.get("request") if self.context else None
+        version = ""
+        if obj.actualizado_en:
+            version = f"?v={int(obj.actualizado_en.timestamp())}"
+
+        path = reverse("finanzas-codigo-qr-publico")
         if request:
-            return request.build_absolute_uri(obj.imagen.url)
-        return obj.imagen.url
+            return request.build_absolute_uri(f"{path}{version}")
+        return f"{path}{version}"
 
     def get_actualizado_por(self, obj):
         if obj.actualizado_por and hasattr(obj.actualizado_por, "user"):
