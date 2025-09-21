@@ -5,9 +5,10 @@ import uuid
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.mail import send_mail
+from django.db.models import F
 from django.utils import timezone
 from rest_framework import status, viewsets
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
@@ -15,6 +16,7 @@ from rest_framework.response import Response
 from .models import (
     Rol,
     Usuario,
+    UsuarioRol,
     Vivienda,
     Residente,
     Vehiculo,
@@ -26,6 +28,7 @@ from .serializers import (
     RolSerializer, UsuarioSerializer, ViviendaSerializer,
     ResidenteSerializer, VehiculoSerializer, AvisoSerializer, CondominioSerializer
 )
+from .permissions import IsAdmin
 
 # --- ROLES ---
 class RolViewSet(viewsets.ModelViewSet):
@@ -92,14 +95,68 @@ class AvisoViewSet(viewsets.ModelViewSet):
     serializer_class = AvisoSerializer
     permission_classes = [IsAuthenticated]
 
+    def get_permissions(self):
+        if self.action in ("list", "retrieve"):
+            return [IsAuthenticated()]
+        return [IsAdmin()]
+
+    def get_queryset(self):
+        usuario = self._current_usuario()
+        es_admin = self._usuario_es_admin(usuario)
+
+        queryset = (
+            Aviso.objects.select_related("autor_usuario__user")
+            .order_by(
+                F("fecha_publicacion").desc(nulls_last=True),
+                "-fecha_creacion",
+            )
+        )
+
+        estado_param = self.request.query_params.get("estado")
+        if estado_param is not None:
+            estado_normalizado = estado_param.strip().lower()
+            if estado_normalizado in {"publicado", "publicados", "1", "true", "t"}:
+                queryset = queryset.filter(estado=Aviso.ESTADO_PUBLICADO)
+            elif estado_normalizado in {"borrador", "borradores", "0", "false", "f"}:
+                queryset = queryset.filter(estado=Aviso.ESTADO_BORRADOR)
+        elif not es_admin:
+            queryset = queryset.filter(estado=Aviso.ESTADO_PUBLICADO)
+
+        return queryset
+
     def perform_create(self, serializer):
-    # Buscar el perfil Usuario vinculado al auth_user que está logueado
-        try:
-            usuario = Usuario.objects.get(user=self.request.user)
-        except Usuario.DoesNotExist:
+        usuario = self._current_usuario()
+        if not usuario:
             raise ValueError("No existe perfil de Usuario vinculado al auth_user actual")
 
-        serializer.save(autor_usuario=usuario)
+        serializer.save(
+            autor_usuario=usuario,
+            estado=Aviso.ESTADO_BORRADOR,
+            fecha_publicacion=None,
+        )
+
+    @action(detail=True, methods=["post"], permission_classes=[IsAdmin])
+    def publicar(self, request, pk=None):
+        aviso = self.get_object()
+        aviso.estado = Aviso.ESTADO_PUBLICADO
+        aviso.fecha_publicacion = timezone.now()
+        aviso.save(update_fields=["estado", "fecha_publicacion"])
+        serializer = self.get_serializer(aviso)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def _current_usuario(self):
+        if not self.request.user or not self.request.user.is_authenticated:
+            return None
+        return Usuario.objects.filter(user=self.request.user).first()
+
+    def _usuario_es_admin(self, usuario):
+        if not usuario:
+            return False
+        return UsuarioRol.objects.filter(
+            usuario=usuario,
+            rol__nombre="ADM",
+            estado=1,
+        ).exists()
 
 # --- PERFIL ---
 @api_view(["GET"])

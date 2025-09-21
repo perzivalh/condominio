@@ -10,6 +10,7 @@ import '../widgets/neumorphic.dart';
 import '../widgets/resident_bottom_nav.dart';
 import 'finance/finanzas_page.dart';
 import 'notifications/resident_notifications_page.dart';
+import 'notices/resident_notices_page.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key, required this.session});
@@ -32,6 +33,15 @@ class _DashboardPageState extends State<DashboardPage> {
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => FinanzasPage(session: widget.session),
+        ),
+      );
+      return;
+    }
+
+    if (module == 'Avisos') {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ResidentNoticesPage(session: widget.session),
         ),
       );
       return;

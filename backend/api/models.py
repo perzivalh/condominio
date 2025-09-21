@@ -148,17 +148,33 @@ class Vehiculo(models.Model):
 # =====================
 
 class Aviso(models.Model):
+    ESTADO_BORRADOR = 0
+    ESTADO_PUBLICADO = 1
+    ESTADO_CHOICES = (
+        (ESTADO_BORRADOR, "Borrador"),
+        (ESTADO_PUBLICADO, "Publicado"),
+    )
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     autor_usuario = models.ForeignKey(Usuario, on_delete=models.CASCADE)
     titulo = models.CharField(max_length=120)
     contenido = models.TextField()
-    fecha_publicacion = models.DateTimeField(auto_now_add=True)
-    estado = models.SmallIntegerField(default=1)  # 1=Publicado, 0=Borrador
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
+    fecha_publicacion = models.DateTimeField(null=True, blank=True)
+    estado = models.SmallIntegerField(
+        choices=ESTADO_CHOICES,
+        default=ESTADO_BORRADOR,
+    )
     visibilidad = models.SmallIntegerField(default=0)  # 0=todos,1=bloque,2=vivienda
     adjunto_url = models.CharField(max_length=200, null=True, blank=True)
 
     def __str__(self):
         return self.titulo
+
+    @property
+    def esta_publicado(self):
+        return self.estado == self.ESTADO_PUBLICADO
+
     class Meta:
         db_table = "aviso"
 

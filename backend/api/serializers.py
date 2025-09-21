@@ -209,10 +209,33 @@ class VehiculoSerializer(serializers.ModelSerializer):
 # --- Aviso ---
 class AvisoSerializer(serializers.ModelSerializer):
     autor_usuario = UsuarioSerializer(read_only=True)
+    esta_publicado = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = Aviso
-        fields = ["id", "titulo", "contenido", "fecha_publicacion", "estado", "visibilidad", "adjunto_url", "autor_usuario"]
+        fields = [
+            "id",
+            "titulo",
+            "contenido",
+            "fecha_creacion",
+            "fecha_publicacion",
+            "estado",
+            "visibilidad",
+            "adjunto_url",
+            "autor_usuario",
+            "esta_publicado",
+        ]
+        read_only_fields = (
+            "id",
+            "fecha_creacion",
+            "fecha_publicacion",
+            "estado",
+            "autor_usuario",
+            "esta_publicado",
+        )
+
+    def get_esta_publicado(self, obj):
+        return obj.esta_publicado
 
 # --- Condominio ---
 class CondominioSerializer(serializers.ModelSerializer):

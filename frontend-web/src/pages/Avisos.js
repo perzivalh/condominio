@@ -21,6 +21,7 @@ function Avisos() {
   const [formData, setFormData] = useState(initialForm);
   const [activeId, setActiveId] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [publishingId, setPublishingId] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
 
   const loadAvisos = useCallback(async () => {
@@ -73,7 +74,6 @@ function Avisos() {
       const payload = {
         titulo: formData.titulo.trim(),
         contenido: formData.contenido.trim(),
-        estado: 1,
         visibilidad: 0,
       };
 
@@ -88,6 +88,26 @@ function Avisos() {
       console.error("Error al guardar el aviso", err);
       alert("No se pudo guardar el aviso. Por favor, inténtalo nuevamente.");
       setIsSubmitting(false);
+    }
+  };
+
+  const handlePublish = async (aviso) => {
+    if (!canManage || publishingId === aviso.id) return;
+
+    const confirmed = window.confirm(
+      `¿Deseas publicar el aviso "${aviso.titulo}" para los residentes?`
+    );
+    if (!confirmed) return;
+
+    setPublishingId(aviso.id);
+    try {
+      await API.post(`avisos/${aviso.id}/publicar/`);
+      await loadAvisos();
+    } catch (err) {
+      console.error("Error al publicar el aviso", err);
+      alert("No se pudo publicar el aviso. Por favor, inténtalo nuevamente.");
+    } finally {
+      setPublishingId(null);
     }
   };
 
@@ -108,10 +128,21 @@ function Avisos() {
     if (!fecha) return "-";
     try {
       const date = new Date(fecha);
-      return date.toLocaleString();
+      if (Number.isNaN(date.getTime())) return fecha;
+      return new Intl.DateTimeFormat("es-BO", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      }).format(date);
     } catch (err) {
       return fecha;
     }
+  };
+
+  const renderEstado = (estado) => {
+    if (estado === 1) {
+      return <span className="gestion-status gestion-status--published">Publicado</span>;
+    }
+    return <span className="gestion-status gestion-status--draft">Borrador</span>;
   };
 
   const filteredAvisos = useMemo(() => {
@@ -174,7 +205,9 @@ function Avisos() {
                 <tr>
                   <th>Título</th>
                   <th>Contenido</th>
-                  <th>Fecha de publicación</th>
+                  <th>Estado</th>
+                  <th>Creado</th>
+                  <th>Publicado</th>
                   {canManage && <th className="gestion-col-actions">Acciones</th>}
                 </tr>
               </thead>
@@ -183,10 +216,22 @@ function Avisos() {
                   <tr key={aviso.id}>
                     <td>{aviso.titulo}</td>
                     <td className="gestion-table-text">{aviso.contenido}</td>
+                    <td>{renderEstado(aviso.estado)}</td>
+                    <td>{formatFecha(aviso.fecha_creacion)}</td>
                     <td>{formatFecha(aviso.fecha_publicacion)}</td>
                     {canManage && (
                       <td>
                         <div className="gestion-row-actions">
+                          {aviso.estado !== 1 && (
+                            <button
+                              type="button"
+                              className="gbutton gbutton--success"
+                              onClick={() => handlePublish(aviso)}
+                              disabled={publishingId === aviso.id}
+                            >
+                              {publishingId === aviso.id ? "Publicando..." : "Publicar"}
+                            </button>
+                          )}
                           <button
                             type="button"
                             className="gbutton gbutton--ghost"
@@ -243,6 +288,11 @@ function Avisos() {
               required
             />
           </label>
+
+          <p className="gestion-form-helper">
+            Los avisos se guardan como borradores. Usa el botón <strong>Publicar</strong>
+            en la tabla para enviarlos a los residentes.
+          </p>
 
           <div className="crud-modal__footer">
             <button
