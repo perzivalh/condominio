@@ -1,7 +1,18 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.utils import timezone
-from .models import Rol, Usuario, UsuarioRol, Vivienda, Residente, Vehiculo, Aviso, Condominio, ResidenteVivienda
+from .models import (
+    Rol,
+    Usuario,
+    UsuarioRol,
+    Vivienda,
+    Residente,
+    Vehiculo,
+    Aviso,
+    Condominio,
+    ResidenteVivienda,
+    NotificacionUsuario,
+)
 
 # --- Rol ---
 class RolSerializer(serializers.ModelSerializer):
@@ -213,6 +224,43 @@ class AvisoSerializer(serializers.ModelSerializer):
     class Meta:
         model = Aviso
         fields = ["id", "titulo", "contenido", "fecha_publicacion", "estado", "visibilidad", "adjunto_url", "autor_usuario"]
+
+
+class AvisoUsuarioSerializer(serializers.ModelSerializer):
+    id = serializers.UUIDField(source="aviso.id", read_only=True)
+    titulo = serializers.CharField(source="aviso.titulo", read_only=True)
+    contenido = serializers.CharField(source="aviso.contenido", read_only=True)
+    fecha_publicacion = serializers.DateTimeField(source="aviso.fecha_publicacion", read_only=True)
+    adjunto_url = serializers.CharField(source="aviso.adjunto_url", read_only=True)
+    autor = serializers.SerializerMethodField()
+    leido = serializers.SerializerMethodField()
+
+    class Meta:
+        model = NotificacionUsuario
+        fields = [
+            "id",
+            "titulo",
+            "contenido",
+            "fecha_publicacion",
+            "adjunto_url",
+            "fecha_envio",
+            "fecha_lectura",
+            "autor",
+            "leido",
+        ]
+
+    def get_autor(self, obj):
+        aviso = getattr(obj, "aviso", None)
+        autor_usuario = getattr(aviso, "autor_usuario", None)
+        if autor_usuario and getattr(autor_usuario, "user", None):
+            full_name = autor_usuario.user.get_full_name().strip()
+            if full_name:
+                return full_name
+            return autor_usuario.user.username
+        return None
+
+    def get_leido(self, obj):
+        return obj.fecha_lectura is not None
 
 # --- Condominio ---
 class CondominioSerializer(serializers.ModelSerializer):

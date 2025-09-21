@@ -2,12 +2,15 @@
 
 import '../core/app_colors.dart';
 import '../core/app_routes.dart';
+import '../models/notice_model.dart';
 import '../models/notification_model.dart';
 import '../models/resident_profile.dart';
 import '../services/auth_service.dart';
+import '../services/announcement_service.dart';
 import '../services/notification_service.dart';
 import '../widgets/neumorphic.dart';
 import '../widgets/resident_bottom_nav.dart';
+import 'announcements/resident_announcements_page.dart';
 import 'finance/finanzas_page.dart';
 import 'notifications/resident_notifications_page.dart';
 
@@ -23,17 +26,30 @@ class DashboardPage extends StatefulWidget {
 class _DashboardPageState extends State<DashboardPage> {
   int _selectedIndex = 1;
   final NotificationService _notificationService = NotificationService();
+  final AnnouncementService _announcementService = AnnouncementService();
   final AuthService _authService = AuthService();
   bool _hasUnreadNotifications = false;
+  bool _hasUnreadNotices = false;
   bool _isLoggingOut = false;
 
-  void _handleModuleTap(String module) {
+  Future<void> _handleModuleTap(String module) async {
     if (module == 'Finanzas') {
-      Navigator.of(context).push(
+      await Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => FinanzasPage(session: widget.session),
         ),
       );
+      return;
+    }
+
+    if (module == 'Avisos') {
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ResidentAnnouncementsPage(session: widget.session),
+        ),
+      );
+      if (!mounted) return;
+      await _loadUnreadNotices();
       return;
     }
 
@@ -49,6 +65,7 @@ class _DashboardPageState extends State<DashboardPage> {
   void initState() {
     super.initState();
     _loadUnreadNotifications();
+    _loadUnreadNotices();
   }
 
   Future<void> _loadUnreadNotifications() async {
@@ -64,6 +81,22 @@ class _DashboardPageState extends State<DashboardPage> {
       if (!mounted) return;
       setState(() {
         _hasUnreadNotifications = false;
+      });
+    }
+  }
+
+  Future<void> _loadUnreadNotices() async {
+    try {
+      final List<ResidentNotice> notices =
+          await _announcementService.fetchNotices();
+      if (!mounted) return;
+      setState(() {
+        _hasUnreadNotices = notices.any((notice) => !notice.leido);
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _hasUnreadNotices = false;
       });
     }
   }
@@ -122,6 +155,7 @@ class _DashboardPageState extends State<DashboardPage> {
           onModuleTap: _handleModuleTap,
           onNotificationsTap: _handleNotificationsTap,
           hasUnreadNotifications: _hasUnreadNotifications,
+          hasUnreadNotices: _hasUnreadNotices,
         );
     }
   }
@@ -204,15 +238,22 @@ class _DashboardHomeContent extends StatelessWidget {
     required this.onModuleTap,
     required this.onNotificationsTap,
     required this.hasUnreadNotifications,
+    required this.hasUnreadNotices,
   });
 
   final ResidentProfile profile;
-  final void Function(String module) onModuleTap;
+  final Future<void> Function(String module) onModuleTap;
   final VoidCallback onNotificationsTap;
   final bool hasUnreadNotifications;
+  final bool hasUnreadNotices;
 
   @override
   Widget build(BuildContext context) {
+    final modulesWithBadge = <String>{};
+    if (hasUnreadNotices) {
+      modulesWithBadge.add('Avisos');
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -228,7 +269,10 @@ class _DashboardHomeContent extends StatelessWidget {
         Expanded(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: _ModuleGrid(onModuleTap: onModuleTap),
+            child: _ModuleGrid(
+              onModuleTap: onModuleTap,
+              modulesWithBadge: modulesWithBadge,
+            ),
           ),
         ),
         const SizedBox(height: 12),
@@ -963,9 +1007,13 @@ class _HeaderRow extends StatelessWidget {
 }
 
 class _ModuleGrid extends StatelessWidget {
-  const _ModuleGrid({required this.onModuleTap});
+  const _ModuleGrid({
+    required this.onModuleTap,
+    required this.modulesWithBadge,
+  });
 
-  final void Function(String module) onModuleTap;
+  final Future<void> Function(String module) onModuleTap;
+  final Set<String> modulesWithBadge;
 
   static final List<_ModuleData> _modules = [
     _ModuleData(label: 'Finanzas', icon: Icons.attach_money_rounded),
@@ -983,17 +1031,45 @@ class _ModuleGrid extends StatelessWidget {
           children: [
             Row(
               children: [
-                Expanded(child: _ModuleCard(data: _modules[0], height: itemHeight, onTap: onModuleTap)),
+                Expanded(
+                  child: _ModuleCard(
+                    data: _modules[0],
+                    height: itemHeight,
+                    onTap: onModuleTap,
+                    showBadge: modulesWithBadge.contains(_modules[0].label),
+                  ),
+                ),
                 const SizedBox(width: 18),
-                Expanded(child: _ModuleCard(data: _modules[1], height: itemHeight, onTap: onModuleTap)),
+                Expanded(
+                  child: _ModuleCard(
+                    data: _modules[1],
+                    height: itemHeight,
+                    onTap: onModuleTap,
+                    showBadge: modulesWithBadge.contains(_modules[1].label),
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 18),
             Row(
               children: [
-                Expanded(child: _ModuleCard(data: _modules[2], height: itemHeight, onTap: onModuleTap)),
+                Expanded(
+                  child: _ModuleCard(
+                    data: _modules[2],
+                    height: itemHeight,
+                    onTap: onModuleTap,
+                    showBadge: modulesWithBadge.contains(_modules[2].label),
+                  ),
+                ),
                 const SizedBox(width: 18),
-                Expanded(child: _ModuleCard(data: _modules[3], height: itemHeight, onTap: onModuleTap)),
+                Expanded(
+                  child: _ModuleCard(
+                    data: _modules[3],
+                    height: itemHeight,
+                    onTap: onModuleTap,
+                    showBadge: modulesWithBadge.contains(_modules[3].label),
+                  ),
+                ),
               ],
             ),
           ],
@@ -1008,43 +1084,72 @@ class _ModuleCard extends StatelessWidget {
     required this.data,
     required this.height,
     required this.onTap,
+    this.showBadge = false,
   });
 
   final _ModuleData data;
   final double height;
-  final void Function(String module) onTap;
+  final Future<void> Function(String module) onTap;
+  final bool showBadge;
 
   @override
   Widget build(BuildContext context) {
-    return NeumorphicSurface(
-      borderRadius: BorderRadius.circular(26),
-      padding: EdgeInsets.zero,
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(26),
-        child: InkWell(
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        NeumorphicSurface(
           borderRadius: BorderRadius.circular(26),
-          onTap: () => onTap(data.label),
-          child: SizedBox(
-            height: height,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(data.icon, size: 40, color: AppColors.primaryText),
-                const SizedBox(height: 12),
-                Text(
-                  data.label,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.primaryText,
-                  ),
+          padding: EdgeInsets.zero,
+          child: Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(26),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(26),
+              onTap: () {
+                onTap(data.label);
+              },
+              child: SizedBox(
+                height: height,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(data.icon, size: 40, color: AppColors.primaryText),
+                    const SizedBox(height: 12),
+                    Text(
+                      data.label,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.primaryText,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
-      ),
+        if (showBadge)
+          Positioned(
+            right: 26,
+            top: 22,
+            child: Container(
+              width: 14,
+              height: 14,
+              decoration: BoxDecoration(
+                color: Colors.redAccent.shade400,
+                shape: BoxShape.circle,
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color.fromRGBO(220, 38, 38, 0.45),
+                    blurRadius: 4,
+                    offset: Offset(0, 1),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
