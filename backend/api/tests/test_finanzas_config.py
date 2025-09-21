@@ -1,7 +1,11 @@
 from decimal import Decimal
+import tempfile
 
 from django.contrib.auth.models import User
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.utils import timezone
+from django.test import override_settings
+from django.urls import reverse
 from rest_framework.test import APITestCase
 
 from ..models import (
@@ -9,7 +13,10 @@ from ..models import (
     ExpensaConfig,
     Factura,
     FacturaDetalle,
+    FinanzasCodigoQR,
     MultaAplicada,
+    Residente,
+    ResidenteVivienda,
     Usuario,
     Vivienda,
 )
@@ -59,6 +66,17 @@ class FinanzasConfiguracionTests(APITestCase):
         self.assertFalse(ExpensaConfig.objects.filter(id=expensa_id).exists())
 
     def test_aplicar_multa_y_generar_factura(self):
+        residente = Residente.objects.create(
+            ci="1234567",
+            nombres="Juan",
+            apellidos="Pérez",
+        )
+        ResidenteVivienda.objects.create(
+            residente=residente,
+            vivienda=self.vivienda,
+            fecha_desde=timezone.localdate(),
+        )
+
         ExpensaConfig.objects.create(
             condominio=self.condominio,
             bloque="A",
@@ -115,3 +133,49 @@ class FinanzasConfiguracionTests(APITestCase):
         pendientes = self.client.get("/api/finanzas/config/multas/")
         self.assertEqual(pendientes.status_code, 200)
         self.assertEqual(len(pendientes.data), 0)
+
+    def test_no_generar_factura_para_vivienda_sin_residentes(self):
+        ExpensaConfig.objects.create(
+            condominio=self.condominio,
+            bloque="A",
+            monto=Decimal("300.00"),
+            periodicidad=ExpensaConfig.PERIODICIDAD_MENSUAL,
+        )
+
+        periodo = timezone.localdate().strftime("%Y-%m")
+        response = self.client.post(
+            "/api/finanzas/admin/generar-facturas/",
+            data={"periodo": periodo},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(
+            Factura.objects.filter(vivienda=self.vivienda, periodo=periodo).exists()
+        )
+
+    def test_qr_publico_retorna_imagen_y_url_publica(self):
+        contenido = b"contenido-imagen"
+        archivo = SimpleUploadedFile(
+            "qr.png",
+            contenido,
+            content_type="image/png",
+        )
+
+        with tempfile.TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            FinanzasCodigoQR.objects.create(imagen=archivo, descripcion="Cuenta 123")
+
+            admin_response = self.client.get("/api/finanzas/admin/codigo-qr/")
+            self.assertEqual(admin_response.status_code, 200)
+            url = admin_response.data["url"]
+            self.assertTrue(url.startswith("http://testserver/api/finanzas/codigo-qr/archivo/"))
+            self.assertIn("?v=", url)
+
+            self.client.logout()
+            public_response = self.client.get(reverse("finanzas-codigo-qr-publico"))
+            self.assertEqual(public_response.status_code, 200)
+            self.assertEqual(public_response["Content-Type"], "image/png")
+            self.assertEqual(
+                b"".join(public_response.streaming_content),
+                contenido,
+            )
