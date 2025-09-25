@@ -1,7 +1,20 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.utils import timezone
-from .models import Rol, Usuario, UsuarioRol, Vivienda, Residente, Vehiculo, Aviso, Condominio, ResidenteVivienda
+from .models import (
+    Rol,
+    Usuario,
+    UsuarioRol,
+    Vivienda,
+    Residente,
+    Vehiculo,
+    Aviso,
+    Condominio,
+    ResidenteVivienda,
+    RegistroAccesoVehicular,
+    CategoriaIncidenteSeguridad,
+    ReporteIncidenteSeguridad,
+)
 
 # --- Rol ---
 class RolSerializer(serializers.ModelSerializer):
@@ -242,3 +255,165 @@ class CondominioSerializer(serializers.ModelSerializer):
     class Meta:
         model = Condominio
         fields = ["id", "nombre", "direccion"]
+
+
+class RegistroAccesoVehicularSerializer(serializers.ModelSerializer):
+    vehiculo = VehiculoSerializer(read_only=True)
+    residente = serializers.SerializerMethodField()
+    guardia = serializers.SerializerMethodField()
+    estado_display = serializers.CharField(source="get_estado_display", read_only=True)
+
+    class Meta:
+        model = RegistroAccesoVehicular
+        fields = [
+            "id",
+            "placa_detectada",
+            "confianza",
+            "estado",
+            "estado_display",
+            "vehiculo",
+            "residente",
+            "guardia",
+            "imagen",
+            "creado_en",
+        ]
+
+    def get_residente(self, obj):
+        vehiculo = obj.vehiculo
+        if not vehiculo or not vehiculo.residente:
+            return None
+
+        residente = vehiculo.residente
+        vivienda = ResidenteVivienda.objects.filter(
+            residente=residente, fecha_hasta__isnull=True
+        ).select_related("vivienda").first()
+
+        return {
+            "id": str(residente.id),
+            "nombres": residente.nombres,
+            "apellidos": residente.apellidos,
+            "vivienda": vivienda.vivienda.codigo_unidad if vivienda else None,
+        }
+
+    def get_guardia(self, obj):
+        guardia = obj.guardia
+        if not guardia or not getattr(guardia, "user", None):
+            return None
+
+        user = guardia.user
+        nombre = user.get_full_name() or user.username
+        return {
+            "id": str(guardia.id),
+            "nombre": nombre,
+        }
+
+
+class CategoriaIncidenteSeguridadSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CategoriaIncidenteSeguridad
+        fields = ["id", "nombre", "descripcion", "activo"]
+
+
+class ReporteIncidenteSeguridadSerializer(serializers.ModelSerializer):
+    residente = serializers.SerializerMethodField()
+    categoria = CategoriaIncidenteSeguridadSerializer(read_only=True)
+    categoria_id = serializers.PrimaryKeyRelatedField(
+        queryset=CategoriaIncidenteSeguridad.objects.filter(activo=True),
+        source="categoria",
+        write_only=True,
+        required=False,
+    )
+    guardia = serializers.SerializerMethodField()
+    tiempo_transcurrido = serializers.SerializerMethodField()
+    categoria_nombre = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ReporteIncidenteSeguridad
+        fields = [
+            "id",
+            "residente",
+            "categoria",
+            "categoria_id",
+            "categoria_otro",
+            "categoria_nombre",
+            "descripcion",
+            "ubicacion",
+            "es_emergencia",
+            "estado",
+            "guardia",
+            "tiempo_transcurrido",
+            "creado_en",
+            "actualizado_en",
+        ]
+        read_only_fields = (
+            "estado",
+            "guardia",
+            "tiempo_transcurrido",
+            "creado_en",
+            "actualizado_en",
+            "categoria",
+            "categoria_nombre",
+        )
+
+    def get_residente(self, obj):
+        residente = obj.residente
+        vivienda = ResidenteVivienda.objects.filter(
+            residente=residente, fecha_hasta__isnull=True
+        ).select_related("vivienda").first()
+
+        return {
+            "id": str(residente.id),
+            "nombres": residente.nombres,
+            "apellidos": residente.apellidos,
+            "telefono": residente.telefono,
+            "codigo_vivienda": vivienda.vivienda.codigo_unidad if vivienda else None,
+        }
+
+    def get_guardia(self, obj):
+        guardia = obj.guardia_asignado
+        if not guardia or not getattr(guardia, "user", None):
+            return None
+
+        user = guardia.user
+        nombre = user.get_full_name() or user.username
+        return {
+            "id": str(guardia.id),
+            "nombre": nombre,
+        }
+
+    def get_tiempo_transcurrido(self, obj):
+        ahora = timezone.now()
+        delta = ahora - obj.creado_en
+        minutos = int(delta.total_seconds() // 60)
+        if minutos < 1:
+            return "Hace instantes"
+        if minutos < 60:
+            return f"Hace {minutos} min"
+        horas = minutos // 60
+        if horas < 24:
+            return f"Hace {horas} h"
+        dias = horas // 24
+        return f"Hace {dias} d"
+
+    def get_categoria_nombre(self, obj):
+        return obj.nombre_categoria()
+
+    def validate(self, attrs):
+        categoria = attrs.get("categoria")
+        categoria_otro = attrs.get("categoria_otro", "").strip()
+        if not categoria and not categoria_otro:
+            raise serializers.ValidationError(
+                "Debe seleccionar una categoría o describir el incidente en 'Otro'."
+            )
+        if categoria and categoria_otro:
+            attrs["categoria_otro"] = ""
+        if not attrs.get("ubicacion"):
+            raise serializers.ValidationError("Debe especificar una ubicación")
+        return super().validate(attrs)
+
+    def create(self, validated_data):
+        residente = self.context.get("residente")
+        if not residente:
+            raise serializers.ValidationError("No se pudo asociar el reporte a un residente")
+        validated_data["residente"] = residente
+        return ReporteIncidenteSeguridad.objects.create(**validated_data)

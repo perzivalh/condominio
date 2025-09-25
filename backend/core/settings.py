@@ -239,3 +239,10 @@ PASSWORD_RESET_EMAIL_SUBJECT = os.environ.get(
     "PASSWORD_RESET_EMAIL_SUBJECT",
     "Instrucciones para restablecer tu contraseña",
 )
+
+# Seguridad - Integración con Plate Recognizer
+PLATE_RECOGNIZER_TOKEN = os.environ.get("PLATE_RECOGNIZER_TOKEN", "").strip()
+PLATE_RECOGNIZER_ENDPOINT = os.environ.get(
+    "PLATE_RECOGNIZER_ENDPOINT",
+    "https://api.platerecognizer.com/v1/plate-reader/",
+).strip()

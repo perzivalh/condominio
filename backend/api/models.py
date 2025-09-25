@@ -143,6 +143,97 @@ class Vehiculo(models.Model):
 
     class Meta:
         db_table = "vehiculo"
+
+
+class RegistroAccesoVehicular(models.Model):
+    ESTADO_APROBADO = "aprobado"
+    ESTADO_RECHAZADO = "rechazado"
+    ESTADO_CHOICES = (
+        (ESTADO_APROBADO, "Aprobado"),
+        (ESTADO_RECHAZADO, "Rechazado"),
+    )
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    guardia = models.ForeignKey(
+        Usuario, on_delete=models.SET_NULL, null=True, blank=True, related_name="accesos_registrados"
+    )
+    vehiculo = models.ForeignKey(
+        Vehiculo, on_delete=models.SET_NULL, null=True, blank=True, related_name="accesos"
+    )
+    placa_detectada = models.CharField(max_length=20)
+    confianza = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    estado = models.CharField(max_length=12, choices=ESTADO_CHOICES)
+    imagen = models.ImageField(upload_to="seguridad/accesos/", null=True, blank=True)
+    respuesta_api = models.JSONField(null=True, blank=True)
+    comentario = models.TextField(null=True, blank=True)
+    creado_en = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "seguridad_registro_acceso_vehicular"
+        ordering = ("-creado_en",)
+
+
+class CategoriaIncidenteSeguridad(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    nombre = models.CharField(max_length=80, unique=True)
+    descripcion = models.CharField(max_length=160, null=True, blank=True)
+    activo = models.BooleanField(default=True)
+    creado_en = models.DateTimeField(auto_now_add=True)
+    actualizado_en = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "seguridad_categoria_incidente"
+        ordering = ("nombre",)
+
+    def __str__(self):
+        return self.nombre
+
+
+class ReporteIncidenteSeguridad(models.Model):
+    ESTADO_PENDIENTE = "pendiente"
+    ESTADO_ATENDIDO = "atendido"
+    ESTADO_DESCARTADO = "descartado"
+    ESTADO_CHOICES = (
+        (ESTADO_PENDIENTE, "Pendiente"),
+        (ESTADO_ATENDIDO, "Atendido"),
+        (ESTADO_DESCARTADO, "Descartado"),
+    )
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    residente = models.ForeignKey(Residente, on_delete=models.CASCADE, related_name="incidentes_reportados")
+    categoria = models.ForeignKey(
+        CategoriaIncidenteSeguridad,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="incidentes",
+    )
+    categoria_otro = models.CharField(max_length=120, blank=True)
+    descripcion = models.TextField(blank=True)
+    ubicacion = models.CharField(max_length=160)
+    es_emergencia = models.BooleanField(default=False)
+    estado = models.CharField(max_length=12, choices=ESTADO_CHOICES, default=ESTADO_PENDIENTE)
+    guardia_asignado = models.ForeignKey(
+        Usuario,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="incidentes_atendidos",
+    )
+    atendido_en = models.DateTimeField(null=True, blank=True)
+    creado_en = models.DateTimeField(auto_now_add=True)
+    actualizado_en = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "seguridad_reporte_incidente"
+        ordering = ("-creado_en",)
+
+    def nombre_categoria(self):
+        if self.categoria:
+            return self.categoria.nombre
+        if self.categoria_otro:
+            return self.categoria_otro
+        return "Sin categoría"
 # =====================
 # CU11 - Avisos
 # =====================

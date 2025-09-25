@@ -14,6 +14,13 @@ from .views import (
     perfil,
     cambiar_password,
 )
+from .security.views import (
+    RegistroAccesoVehicularViewSet,
+    CategoriaIncidenteSeguridadViewSet,
+    ReporteIncidenteSeguridadViewSet,
+    resumen_seguridad,
+    exportar_resumen_pdf,
+)
 from .finanzas.views import (
     catalogo_multa_detalle,
     catalogo_multas,
@@ -49,6 +56,9 @@ router.register(r'residentes', ResidenteViewSet)
 router.register(r'vehiculos', VehiculoViewSet)
 router.register(r'avisos', AvisoViewSet)
 router.register(r'condominios', CondominioViewSet)
+router.register(r'seguridad/accesos', RegistroAccesoVehicularViewSet, basename='seguridad-accesos')
+router.register(r'seguridad/incidentes', ReporteIncidenteSeguridadViewSet, basename='seguridad-incidentes')
+router.register(r'seguridad/categorias', CategoriaIncidenteSeguridadViewSet, basename='seguridad-categorias')
 
 urlpatterns = [
     path('', include(router.urls)),
@@ -56,6 +66,8 @@ urlpatterns = [
     path('reset-password/', reset_password),
     path('cambiar-password/', cambiar_password),
     path('perfil/', perfil),
+    path('seguridad/reportes/resumen/', resumen_seguridad),
+    path('seguridad/reportes/resumen/pdf/', exportar_resumen_pdf),
     path('finanzas/resumen/', resumen_finanzas),
     path('finanzas/admin/resumen/', resumen_finanzas_admin),
     path('finanzas/admin/facturas/', facturas_admin),

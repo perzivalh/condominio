@@ -11,6 +11,7 @@ import '../widgets/resident_bottom_nav.dart';
 import 'finance/finanzas_page.dart';
 import 'notifications/resident_notifications_page.dart';
 import 'notices/resident_notices_page.dart';
+import 'security/resident_security_page.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key, required this.session});
@@ -29,6 +30,15 @@ class _DashboardPageState extends State<DashboardPage> {
   bool _isLoggingOut = false;
 
   void _handleModuleTap(String module) {
+    if (module == 'Seguridad') {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ResidentSecurityPage(session: widget.session),
+        ),
+      );
+      return;
+    }
+
     if (module == 'Finanzas') {
       Navigator.of(context).push(
         MaterialPageRoute(
@@ -978,9 +988,9 @@ class _ModuleGrid extends StatelessWidget {
   final void Function(String module) onModuleTap;
 
   static final List<_ModuleData> _modules = [
+    _ModuleData(label: 'Seguridad', icon: Icons.local_police_outlined),
     _ModuleData(label: 'Finanzas', icon: Icons.attach_money_rounded),
     _ModuleData(label: 'Avisos', icon: Icons.mark_email_unread_outlined),
-    _ModuleData(label: 'Reservas', icon: Icons.calendar_today_outlined),
     _ModuleData(label: 'Visitas', icon: Icons.meeting_room_outlined),
   ];
 
