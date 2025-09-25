@@ -1,4 +1,5 @@
-﻿import 'dart:convert';
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
@@ -102,11 +103,18 @@ class AuthService {
 
   Future<TokenPair> _requestTokens(String username, String password) async {
     final uri = _buildUri('token/');
-    final response = await _client.post(
-      uri,
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'username': username, 'password': password}),
-    );
+    final http.Response response;
+    try {
+      response = await _client.post(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'username': username, 'password': password}),
+      );
+    } on SocketException catch (_) {
+      throw _connectionException();
+    } on http.ClientException catch (_) {
+      throw _connectionException();
+    }
 
     if (response.statusCode != 200) {
       throw AuthException('Credenciales invalidas.');
@@ -127,7 +135,14 @@ class AuthService {
     required String fallbackUsername,
     required String accessToken,
   }) async {
-    final userData = await _fetchPerfil(accessToken);
+    Map<String, dynamic> userData;
+    try {
+      userData = await _fetchPerfil(accessToken);
+    } on AuthException {
+      // Compatibilidad con despliegues que aún no exponen /api/perfil/.
+      userData = await _findUsuario(fallbackUsername, accessToken);
+    }
+
     final roles = userData['roles'] as List<dynamic>? ?? [];
 
     final hasResidentRole = roles.any((role) => role.toString().toUpperCase() == 'RES');
@@ -166,10 +181,17 @@ class AuthService {
 
   Future<Map<String, dynamic>> _fetchPerfil(String accessToken) async {
     final uri = _buildUri('perfil/');
-    final response = await _client.get(
-      uri,
-      headers: {'Authorization': 'Bearer $accessToken'},
-    );
+    final http.Response response;
+    try {
+      response = await _client.get(
+        uri,
+        headers: {'Authorization': 'Bearer $accessToken'},
+      );
+    } on SocketException catch (_) {
+      throw _connectionException();
+    } on http.ClientException catch (_) {
+      throw _connectionException();
+    }
 
     if (response.statusCode != 200) {
       throw AuthException('No se pudo obtener la informacion del usuario.');
@@ -188,10 +210,17 @@ class AuthService {
     String accessToken,
   ) async {
     final uri = _buildUri('residentes/$residenteId/');
-    final response = await _client.get(
-      uri,
-      headers: {'Authorization': 'Bearer $accessToken'},
-    );
+    final http.Response response;
+    try {
+      response = await _client.get(
+        uri,
+        headers: {'Authorization': 'Bearer $accessToken'},
+      );
+    } on SocketException catch (_) {
+      throw _connectionException();
+    } on http.ClientException catch (_) {
+      throw _connectionException();
+    }
 
     if (response.statusCode != 200) {
       throw AuthException('No se pudo obtener la informacion del residente.');
@@ -203,6 +232,53 @@ class AuthService {
     }
 
     throw AuthException('Formato inesperado para el detalle del residente.');
+  }
+
+  Future<Map<String, dynamic>> _findUsuario(
+    String username,
+    String accessToken,
+  ) async {
+    final uri = _buildUri('usuarios/');
+    final http.Response response;
+    try {
+      response = await _client.get(
+        uri,
+        headers: {'Authorization': 'Bearer $accessToken'},
+      );
+    } on SocketException catch (_) {
+      throw _connectionException();
+    } on http.ClientException catch (_) {
+      throw _connectionException();
+    }
+
+    if (response.statusCode != 200) {
+      throw AuthException('No se pudo obtener la informacion del usuario.');
+    }
+
+    final decoded = jsonDecode(response.body);
+    final List<dynamic> usuarios;
+    if (decoded is List) {
+      usuarios = decoded;
+    } else if (decoded is Map<String, dynamic> && decoded['results'] is List) {
+      usuarios = decoded['results'] as List<dynamic>;
+    } else {
+      throw AuthException('Formato inesperado al listar usuarios.');
+    }
+
+    final lower = username.toLowerCase();
+    final match = usuarios.cast<Map<String, dynamic>?>().firstWhere(
+          (item) {
+            final usernameOut = item?['username_out']?.toString().toLowerCase();
+            return usernameOut == lower;
+          },
+          orElse: () => null,
+        );
+
+    if (match == null) {
+      throw AuthException('Usuario no encontrado.');
+    }
+
+    return match;
   }
 
   String _stringField(Map<String, dynamic> data, String field) {
@@ -233,5 +309,11 @@ class AuthService {
       // Ignorar errores de parseo y devolver mensaje genérico.
     }
     return 'Ocurrió un error inesperado (${response.statusCode}).';
+  }
+
+  AuthException _connectionException() {
+    return AuthException(
+      'No se pudo conectar con el servidor. Verifica tu conexion o la URL configurada.',
+    );
   }
 }
