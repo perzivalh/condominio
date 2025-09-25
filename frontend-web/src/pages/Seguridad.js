@@ -49,6 +49,7 @@ function Seguridad() {
   const [incidents, setIncidents] = useState([]);
   const [incidentsLoading, setIncidentsLoading] = useState(false);
   const [incidentsRefreshing, setIncidentsRefreshing] = useState(false);
+  const silentRefreshRef = useRef(false);
   const [identifyError, setIdentifyError] = useState("");
   const [identifySuccess, setIdentifySuccess] = useState(null);
   const [summaryOpen, setSummaryOpen] = useState(false);
@@ -102,39 +103,61 @@ function Seguridad() {
     }
   }, []);
 
-  const loadIncidents = useCallback(async ({ showLoader = false } = {}) => {
-    if (!showLoader && (incidentsLoading || incidentsRefreshing)) {
-      return;
-    }
+  const loadIncidents = useCallback(
+    async ({ initial = false, silent = false } = {}) => {
+      if (initial) {
+        if (incidentsLoading) {
+          return;
+        }
+        setIncidentsLoading(true);
+      } else if (silent) {
+        if (silentRefreshRef.current) {
+          return;
+        }
+        silentRefreshRef.current = true;
+      } else {
+        if (incidentsRefreshing || incidentsLoading) {
+          return;
+        }
+        setIncidentsRefreshing(true);
+      }
 
-    if (showLoader) {
-      setIncidentsLoading(true);
-    } else {
-      setIncidentsRefreshing(true);
-    }
-    try {
-      const data = await fetchIncidents({ limit: 6 });
-      setIncidents(Array.isArray(data) ? data : []);
-    } catch (error) {
-      if (showLoader) {
-        setIncidents([]);
+      try {
+        const data = await fetchIncidents({ limit: 6 });
+        setIncidents((prev) => {
+          const next = Array.isArray(data) ? data : [];
+          if (prev.length !== next.length) {
+            return next;
+          }
+          const prevSerialized = JSON.stringify(prev);
+          const nextSerialized = JSON.stringify(next);
+          return prevSerialized === nextSerialized ? prev : next;
+        });
+      } catch (error) {
+        if (initial) {
+          setIncidents([]);
+        }
+      } finally {
+        if (initial) {
+          setIncidentsLoading(false);
+        } else if (silent) {
+          silentRefreshRef.current = false;
+        } else {
+          setIncidentsRefreshing(false);
+        }
       }
-    } finally {
-      if (showLoader) {
-        setIncidentsLoading(false);
-      }
-      setIncidentsRefreshing(false);
-    }
-  }, [incidentsLoading, incidentsRefreshing]);
+    },
+    [incidentsLoading, incidentsRefreshing]
+  );
 
   useEffect(() => {
     loadHistory();
-    loadIncidents({ showLoader: true });
+    loadIncidents({ initial: true });
   }, [loadHistory, loadIncidents]);
 
   useEffect(() => {
     const interval = setInterval(() => {
-      loadIncidents({ showLoader: false });
+      loadIncidents({ silent: true });
     }, 15000);
     return () => clearInterval(interval);
   }, [loadIncidents]);
@@ -307,7 +330,7 @@ function Seguridad() {
             <h2>Alertas por Incidentes</h2>
             <button
               className="pill-button"
-              onClick={() => loadIncidents({ showLoader: false })}
+              onClick={() => loadIncidents()}
               disabled={incidentsLoading || incidentsRefreshing}
             >
               {incidentsRefreshing ? "Actualizando..." : "Actualizar"}
