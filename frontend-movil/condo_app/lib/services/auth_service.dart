@@ -16,7 +16,10 @@ class AuthService {
 
   Future<ResidentSession> loginResident(String username, String password) async {
     final tokens = await _requestTokens(username, password);
-    final profile = await _loadResidentProfile(username, tokens.access);
+    final profile = await _loadResidentProfile(
+      fallbackUsername: username,
+      accessToken: tokens.access,
+    );
 
     await _storage.write(key: accessTokenKey, value: tokens.access);
     await _storage.write(key: refreshTokenKey, value: tokens.refresh);
@@ -120,8 +123,11 @@ class AuthService {
     return TokenPair(access: access, refresh: refresh);
   }
 
-  Future<ResidentProfile> _loadResidentProfile(String username, String accessToken) async {
-    final userData = await _findUsuario(username, accessToken);
+  Future<ResidentProfile> _loadResidentProfile({
+    required String fallbackUsername,
+    required String accessToken,
+  }) async {
+    final userData = await _fetchPerfil(accessToken);
     final roles = userData['roles'] as List<dynamic>? ?? [];
 
     final hasResidentRole = roles.any((role) => role.toString().toUpperCase() == 'RES');
@@ -150,7 +156,7 @@ class AuthService {
 
     return ResidentProfile(
       usuarioId: userData['id'].toString(),
-      username: userData['username_out']?.toString() ?? username,
+      username: userData['username_out']?.toString() ?? fallbackUsername,
       residenteId: residenteId,
       firstName: nombres,
       lastName: apellidos,
@@ -158,8 +164,8 @@ class AuthService {
     );
   }
 
-  Future<Map<String, dynamic>> _findUsuario(String username, String accessToken) async {
-    final uri = _buildUri('usuarios/');
+  Future<Map<String, dynamic>> _fetchPerfil(String accessToken) async {
+    final uri = _buildUri('perfil/');
     final response = await _client.get(
       uri,
       headers: {'Authorization': 'Bearer $accessToken'},
@@ -170,29 +176,11 @@ class AuthService {
     }
 
     final decoded = jsonDecode(response.body);
-    final List<dynamic> usuarios;
-    if (decoded is List) {
-      usuarios = decoded;
-    } else if (decoded is Map<String, dynamic> && decoded['results'] is List) {
-      usuarios = decoded['results'] as List<dynamic>;
-    } else {
-      throw AuthException('Formato inesperado al listar usuarios.');
+    if (decoded is Map<String, dynamic>) {
+      return decoded;
     }
 
-    final lower = username.toLowerCase();
-    final match = usuarios.cast<Map<String, dynamic>?>().firstWhere(
-          (item) {
-            final usernameOut = item?['username_out']?.toString().toLowerCase();
-            return usernameOut == lower;
-          },
-          orElse: () => null,
-        );
-
-    if (match == null) {
-      throw AuthException('Usuario no encontrado.');
-    }
-
-    return match;
+    throw AuthException('Formato inesperado al obtener el perfil.');
   }
 
   Future<Map<String, dynamic>> _fetchResidenteDetalle(
