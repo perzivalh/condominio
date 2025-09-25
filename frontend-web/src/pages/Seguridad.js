@@ -49,6 +49,8 @@ function Seguridad() {
   const [incidents, setIncidents] = useState([]);
   const [incidentsLoading, setIncidentsLoading] = useState(false);
   const [incidentsRefreshing, setIncidentsRefreshing] = useState(false);
+  const incidentsLoadingRef = useRef(false);
+  const incidentsRefreshingRef = useRef(false);
   const [identifyError, setIdentifyError] = useState("");
   const [identifySuccess, setIdentifySuccess] = useState(null);
   const [summaryOpen, setSummaryOpen] = useState(false);
@@ -117,14 +119,16 @@ function Seguridad() {
   const loadIncidents = useCallback(
     async ({ initial = false } = {}) => {
       if (initial) {
-        if (incidentsLoading) {
+        if (incidentsLoadingRef.current) {
           return;
         }
+        incidentsLoadingRef.current = true;
         setIncidentsLoading(true);
       } else {
-        if (incidentsRefreshing || incidentsLoading) {
+        if (incidentsRefreshingRef.current || incidentsLoadingRef.current) {
           return;
         }
+        incidentsRefreshingRef.current = true;
         setIncidentsRefreshing(true);
       }
 
@@ -137,13 +141,15 @@ function Seguridad() {
         }
       } finally {
         if (initial) {
+          incidentsLoadingRef.current = false;
           setIncidentsLoading(false);
         } else {
+          incidentsRefreshingRef.current = false;
           setIncidentsRefreshing(false);
         }
       }
     },
-    [applyIncidents, incidentsLoading, incidentsRefreshing]
+    [applyIncidents]
   );
 
   useEffect(() => {
