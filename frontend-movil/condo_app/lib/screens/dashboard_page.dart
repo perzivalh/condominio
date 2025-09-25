@@ -48,15 +48,6 @@ class _DashboardPageState extends State<DashboardPage> {
       return;
     }
 
-    if (module == 'Avisos') {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => ResidentNoticesPage(session: widget.session),
-        ),
-      );
-      return;
-    }
-
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('Módulo "$module" aún no está disponible.'),
@@ -98,6 +89,14 @@ class _DashboardPageState extends State<DashboardPage> {
     await _loadUnreadNotifications();
   }
 
+  void _handleNoticesTap() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ResidentNoticesPage(session: widget.session),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final profile = widget.session.profile;
@@ -133,6 +132,7 @@ class _DashboardPageState extends State<DashboardPage> {
           key: const ValueKey('coming-soon'),
           profile: profile,
           onNotificationsTap: _handleNotificationsTap,
+          onNoticesTap: _handleNoticesTap,
           hasUnreadNotifications: _hasUnreadNotifications,
         );
       default:
@@ -141,6 +141,7 @@ class _DashboardPageState extends State<DashboardPage> {
           profile: profile,
           onModuleTap: _handleModuleTap,
           onNotificationsTap: _handleNotificationsTap,
+          onNoticesTap: _handleNoticesTap,
           hasUnreadNotifications: _hasUnreadNotifications,
         );
     }
@@ -223,12 +224,14 @@ class _DashboardHomeContent extends StatelessWidget {
     required this.profile,
     required this.onModuleTap,
     required this.onNotificationsTap,
+    required this.onNoticesTap,
     required this.hasUnreadNotifications,
   });
 
   final ResidentProfile profile;
   final void Function(String module) onModuleTap;
   final VoidCallback onNotificationsTap;
+  final VoidCallback onNoticesTap;
   final bool hasUnreadNotifications;
 
   @override
@@ -241,6 +244,7 @@ class _DashboardHomeContent extends StatelessWidget {
           child: _HeaderRow(
             profile: profile,
             onNotificationsTap: onNotificationsTap,
+            onNoticesTap: onNoticesTap,
             hasUnreadNotifications: hasUnreadNotifications,
           ),
         ),
@@ -262,11 +266,13 @@ class _ComingSoonContent extends StatelessWidget {
     super.key,
     required this.profile,
     required this.onNotificationsTap,
+    required this.onNoticesTap,
     required this.hasUnreadNotifications,
   });
 
   final ResidentProfile profile;
   final VoidCallback onNotificationsTap;
+  final VoidCallback onNoticesTap;
   final bool hasUnreadNotifications;
 
   @override
@@ -279,6 +285,7 @@ class _ComingSoonContent extends StatelessWidget {
           child: _HeaderRow(
             profile: profile,
             onNotificationsTap: onNotificationsTap,
+            onNoticesTap: onNoticesTap,
             hasUnreadNotifications: hasUnreadNotifications,
           ),
         ),
@@ -893,11 +900,13 @@ class _HeaderRow extends StatelessWidget {
   const _HeaderRow({
     required this.profile,
     required this.onNotificationsTap,
+    required this.onNoticesTap,
     required this.hasUnreadNotifications,
   });
 
   final ResidentProfile profile;
   final VoidCallback onNotificationsTap;
+  final VoidCallback onNoticesTap;
   final bool hasUnreadNotifications;
 
   @override
@@ -931,9 +940,55 @@ class _HeaderRow extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 16),
-        Stack(
-          clipBehavior: Clip.none,
+        Row(
           children: [
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                NeumorphicSurface(
+                  borderRadius: BorderRadius.circular(22),
+                  padding: EdgeInsets.zero,
+                  child: Material(
+                    color: Colors.transparent,
+                    borderRadius: BorderRadius.circular(22),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(22),
+                      onTap: onNotificationsTap,
+                      child: const SizedBox(
+                        width: 48,
+                        height: 48,
+                        child: Icon(
+                          Icons.notifications_none_outlined,
+                          color: AppColors.primaryText,
+                          size: 26,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                if (hasUnreadNotifications)
+                  Positioned(
+                    right: 6,
+                    top: 6,
+                    child: Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: Colors.redAccent.shade400,
+                        shape: BoxShape.circle,
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Color.fromRGBO(220, 38, 38, 0.45),
+                            blurRadius: 4,
+                            offset: Offset(0, 1),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(width: 12),
             NeumorphicSurface(
               borderRadius: BorderRadius.circular(22),
               padding: EdgeInsets.zero,
@@ -942,12 +997,12 @@ class _HeaderRow extends StatelessWidget {
                 borderRadius: BorderRadius.circular(22),
                 child: InkWell(
                   borderRadius: BorderRadius.circular(22),
-                  onTap: onNotificationsTap,
+                  onTap: onNoticesTap,
                   child: const SizedBox(
                     width: 48,
                     height: 48,
                     child: Icon(
-                      Icons.notifications_none_outlined,
+                      Icons.mark_email_unread_outlined,
                       color: AppColors.primaryText,
                       size: 26,
                     ),
@@ -955,26 +1010,6 @@ class _HeaderRow extends StatelessWidget {
                 ),
               ),
             ),
-            if (hasUnreadNotifications)
-              Positioned(
-                right: 6,
-                top: 6,
-                child: Container(
-                  width: 12,
-                  height: 12,
-                  decoration: BoxDecoration(
-                    color: Colors.redAccent.shade400,
-                    shape: BoxShape.circle,
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color.fromRGBO(220, 38, 38, 0.45),
-                        blurRadius: 4,
-                        offset: Offset(0, 1),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
           ],
         ),
       ],
@@ -990,7 +1025,7 @@ class _ModuleGrid extends StatelessWidget {
   static final List<_ModuleData> _modules = [
     _ModuleData(label: 'Seguridad', icon: Icons.local_police_outlined),
     _ModuleData(label: 'Finanzas', icon: Icons.attach_money_rounded),
-    _ModuleData(label: 'Avisos', icon: Icons.mark_email_unread_outlined),
+    _ModuleData(label: 'Áreas comunes', icon: Icons.calendar_today_outlined),
     _ModuleData(label: 'Visitas', icon: Icons.meeting_room_outlined),
   ];
 

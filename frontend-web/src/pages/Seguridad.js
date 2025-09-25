@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   downloadSecuritySummaryPdf,
   fetchAccessHistory,
@@ -48,6 +48,7 @@ function Seguridad() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [incidents, setIncidents] = useState([]);
   const [incidentsLoading, setIncidentsLoading] = useState(false);
+  const [incidentsRefreshing, setIncidentsRefreshing] = useState(false);
   const [identifyError, setIdentifyError] = useState("");
   const [identifySuccess, setIdentifySuccess] = useState(null);
   const [summaryOpen, setSummaryOpen] = useState(false);
@@ -87,36 +88,56 @@ function Seguridad() {
     };
   }, []);
 
-  useEffect(() => {
-    const loadHistory = async () => {
-      setHistoryLoading(true);
-      try {
-        const data = await fetchAccessHistory(10);
-        setAccessHistory(Array.isArray(data) ? data : []);
-      } catch (error) {
-        setIdentifyError(
-          "No se pudo cargar el historial de accesos. Intente nuevamente."
-        );
-      } finally {
-        setHistoryLoading(false);
-      }
-    };
+  const loadHistory = useCallback(async () => {
+    setHistoryLoading(true);
+    try {
+      const data = await fetchAccessHistory(10);
+      setAccessHistory(Array.isArray(data) ? data : []);
+    } catch (error) {
+      setIdentifyError(
+        "No se pudo cargar el historial de accesos. Intente nuevamente."
+      );
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, []);
 
-    const loadIncidents = async () => {
+  const loadIncidents = useCallback(async ({ showLoader = false } = {}) => {
+    if (!showLoader && (incidentsLoading || incidentsRefreshing)) {
+      return;
+    }
+
+    if (showLoader) {
       setIncidentsLoading(true);
-      try {
-        const data = await fetchIncidents({ limit: 6 });
-        setIncidents(Array.isArray(data) ? data : []);
-      } catch (error) {
+    } else {
+      setIncidentsRefreshing(true);
+    }
+    try {
+      const data = await fetchIncidents({ limit: 6 });
+      setIncidents(Array.isArray(data) ? data : []);
+    } catch (error) {
+      if (showLoader) {
         setIncidents([]);
-      } finally {
+      }
+    } finally {
+      if (showLoader) {
         setIncidentsLoading(false);
       }
-    };
+      setIncidentsRefreshing(false);
+    }
+  }, [incidentsLoading, incidentsRefreshing]);
 
+  useEffect(() => {
     loadHistory();
-    loadIncidents();
-  }, []);
+    loadIncidents({ showLoader: true });
+  }, [loadHistory, loadIncidents]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadIncidents({ showLoader: false });
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [loadIncidents]);
 
   useEffect(() => {
     if (!summaryOpen) {
@@ -284,6 +305,13 @@ function Seguridad() {
         <section className="security-card incidents-card">
           <div className="card-header">
             <h2>Alertas por Incidentes</h2>
+            <button
+              className="pill-button"
+              onClick={() => loadIncidents({ showLoader: false })}
+              disabled={incidentsLoading || incidentsRefreshing}
+            >
+              {incidentsRefreshing ? "Actualizando..." : "Actualizar"}
+            </button>
           </div>
           {incidentsLoading ? (
             <p className="loading-text">Cargando reportes...</p>

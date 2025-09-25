@@ -88,11 +88,25 @@ class _ResidentSecurityPageState extends State<ResidentSecurityPage> {
     });
 
     try {
+      final defaultLocation = widget.session.profile.codigoUnidad;
+      final String locationValue;
+      if (emergency) {
+        if (defaultLocation != null && defaultLocation.isNotEmpty) {
+          locationValue = 'Vivienda $defaultLocation';
+        } else {
+          locationValue = 'Vivienda del residente';
+        }
+      } else {
+        locationValue = _locationController.text;
+      }
+
       await _service.reportIncident(
         categoriaId: emergency || _isOtherCategorySelected ? null : _selectedCategoryId,
-        categoriaOtro: _isOtherCategorySelected ? _otherCategoryController.text : null,
+        categoriaOtro: emergency
+            ? 'Emergencia'
+            : (_isOtherCategorySelected ? _otherCategoryController.text : null),
         descripcion: _descriptionController.text,
-        ubicacion: _locationController.text,
+        ubicacion: locationValue,
         esEmergencia: emergency,
       );
 

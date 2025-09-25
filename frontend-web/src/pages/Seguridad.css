@@ -219,9 +219,23 @@
 }
 
 .incident.emergency {
-  border: 1px solid rgba(220, 76, 70, 0.4);
-  box-shadow: inset -6px -6px 12px rgba(255, 255, 255, 0.75),
-    inset 6px 6px 12px rgba(220, 76, 70, 0.25);
+  border: 1px solid rgba(220, 76, 70, 0.35);
+  background: linear-gradient(145deg, #fdecea, #fbd5d5);
+  box-shadow: inset -6px -6px 12px rgba(255, 255, 255, 0.82),
+    inset 6px 6px 12px rgba(220, 76, 70, 0.3);
+}
+
+.incident.emergency .category,
+.incident.emergency .time-chip {
+  color: #b42318;
+}
+
+.incident.emergency .incident-desc {
+  color: #912018;
+}
+
+.incident.emergency .incident-footer {
+  color: #b42318;
 }
 
 .incident-title {
