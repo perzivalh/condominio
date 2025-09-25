@@ -20,6 +20,7 @@ from .security.views import (
     ReporteIncidenteSeguridadViewSet,
     resumen_seguridad,
     exportar_resumen_pdf,
+    incidentes_event_stream,
 )
 from .finanzas.views import (
     catalogo_multa_detalle,
@@ -68,6 +69,7 @@ urlpatterns = [
     path('perfil/', perfil),
     path('seguridad/reportes/resumen/', resumen_seguridad),
     path('seguridad/reportes/resumen/pdf/', exportar_resumen_pdf),
+    path('seguridad/incidentes/stream/', incidentes_event_stream),
     path('finanzas/resumen/', resumen_finanzas),
     path('finanzas/admin/resumen/', resumen_finanzas_admin),
     path('finanzas/admin/facturas/', facturas_admin),

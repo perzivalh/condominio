@@ -1,6 +1,7 @@
 import base64
 import json
 import logging
+import time
 import uuid
 from datetime import timedelta
 from decimal import Decimal, ROUND_HALF_UP
@@ -10,12 +11,16 @@ from urllib import error as urllib_error, request as urllib_request
 from django.conf import settings
 from django.core.files.base import ContentFile
 from django.db.models import Count
-from django.http import HttpResponse
+from django.http import HttpResponse, StreamingHttpResponse
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
+from django.views.decorators.http import require_GET
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework_simplejwt.authentication import JWTAuthentication
 
 from ..models import (
     RegistroAccesoVehicular,
@@ -277,6 +282,113 @@ def exportar_resumen_pdf(request):
     response = HttpResponse(pdf_bytes, content_type="application/pdf")
     response["Content-Disposition"] = f"attachment; filename={filename}"
     return response
+
+
+@require_GET
+def incidentes_event_stream(request):
+    """Server-sent events stream with recent security incidents."""
+
+    user = _authenticate_event_stream(request)
+    if not user:
+        return HttpResponse(status=status.HTTP_401_UNAUTHORIZED)
+
+    request.user = user
+    usuario = _usuario_actual(user)
+    if not usuario or not _usuario_tiene_rol(usuario, {"ADM", "GUA"}):
+        return HttpResponse(status=status.HTTP_403_FORBIDDEN)
+
+    last_seen = _parse_last_event_id(request)
+
+    def stream():
+        nonlocal last_seen
+        sleep_seconds = 5
+
+        while True:
+            try:
+                queryset = (
+                    ReporteIncidenteSeguridad.objects.select_related(
+                        "residente",
+                        "categoria",
+                        "guardia_asignado__user",
+                    )
+                    .order_by("-creado_en")
+                )
+                limit = 6
+                items = list(queryset[:limit])
+
+                if items:
+                    latest_timestamp = max(item.actualizado_en for item in items)
+                else:
+                    latest_timestamp = None
+
+                if latest_timestamp and (
+                    not last_seen or latest_timestamp > last_seen
+                ):
+                    serializer = ReporteIncidenteSeguridadSerializer(
+                        items,
+                        many=True,
+                        context={"request": request},
+                    )
+                    payload = json.dumps({"incidents": serializer.data})
+                    last_seen = latest_timestamp
+
+                    yield f"id: {latest_timestamp.isoformat() }\n"
+                    yield "event: incidents\n"
+                    yield f"data: {payload}\n\n"
+
+                yield "event: keepalive\n"
+                yield "data: {}\n\n"
+                time.sleep(sleep_seconds)
+            except GeneratorExit:
+                break
+            except Exception as exc:  # pragma: no cover - logged for observability
+                logger.exception("Error en stream de incidentes: %s", exc)
+                yield "event: error\n"
+                yield "data: \"stream_error\"\n\n"
+                time.sleep(sleep_seconds)
+
+    response = StreamingHttpResponse(stream(), content_type="text/event-stream")
+    response["Cache-Control"] = "no-cache"
+    response["X-Accel-Buffering"] = "no"
+    return response
+
+
+def _authenticate_event_stream(request):
+    authenticator = JWTAuthentication()
+
+    try:
+        header = authenticator.get_header(request)
+        if header:
+            raw_token = authenticator.get_raw_token(header)
+            validated_token = authenticator.get_validated_token(raw_token)
+            return authenticator.get_user(validated_token)
+    except AuthenticationFailed:
+        return None
+
+    token_param = request.GET.get("token")
+    if not token_param:
+        return None
+
+    try:
+        validated_token = authenticator.get_validated_token(token_param)
+    except AuthenticationFailed:
+        return None
+
+    return authenticator.get_user(validated_token)
+
+
+def _parse_last_event_id(request):
+    candidate = request.headers.get("Last-Event-ID") or request.GET.get("last_event_id")
+    if not candidate:
+        return None
+
+    value = parse_datetime(candidate)
+    if not value:
+        return None
+
+    if timezone.is_naive(value):
+        value = timezone.make_aware(value, timezone=timezone.utc)
+    return value
 
 
 def _render_resumen_pdf(resumen: dict) -> bytes:

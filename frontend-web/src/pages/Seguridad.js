@@ -49,7 +49,9 @@ function Seguridad() {
   const [incidents, setIncidents] = useState([]);
   const [incidentsLoading, setIncidentsLoading] = useState(false);
   const [incidentsRefreshing, setIncidentsRefreshing] = useState(false);
-  const silentRefreshRef = useRef(false);
+  const eventSourceRef = useRef(null);
+  const reconnectTimerRef = useRef(null);
+  const reconnectDelayRef = useRef(4000);
   const [identifyError, setIdentifyError] = useState("");
   const [identifySuccess, setIdentifySuccess] = useState(null);
   const [summaryOpen, setSummaryOpen] = useState(false);
@@ -103,18 +105,25 @@ function Seguridad() {
     }
   }, []);
 
+  const applyIncidents = useCallback((incoming) => {
+    setIncidents((prev) => {
+      const next = Array.isArray(incoming) ? incoming : [];
+      if (prev.length !== next.length) {
+        return next;
+      }
+      const prevSerialized = JSON.stringify(prev);
+      const nextSerialized = JSON.stringify(next);
+      return prevSerialized === nextSerialized ? prev : next;
+    });
+  }, []);
+
   const loadIncidents = useCallback(
-    async ({ initial = false, silent = false } = {}) => {
+    async ({ initial = false } = {}) => {
       if (initial) {
         if (incidentsLoading) {
           return;
         }
         setIncidentsLoading(true);
-      } else if (silent) {
-        if (silentRefreshRef.current) {
-          return;
-        }
-        silentRefreshRef.current = true;
       } else {
         if (incidentsRefreshing || incidentsLoading) {
           return;
@@ -124,15 +133,7 @@ function Seguridad() {
 
       try {
         const data = await fetchIncidents({ limit: 6 });
-        setIncidents((prev) => {
-          const next = Array.isArray(data) ? data : [];
-          if (prev.length !== next.length) {
-            return next;
-          }
-          const prevSerialized = JSON.stringify(prev);
-          const nextSerialized = JSON.stringify(next);
-          return prevSerialized === nextSerialized ? prev : next;
-        });
+        applyIncidents(data);
       } catch (error) {
         if (initial) {
           setIncidents([]);
@@ -140,14 +141,12 @@ function Seguridad() {
       } finally {
         if (initial) {
           setIncidentsLoading(false);
-        } else if (silent) {
-          silentRefreshRef.current = false;
         } else {
           setIncidentsRefreshing(false);
         }
       }
     },
-    [incidentsLoading, incidentsRefreshing]
+    [applyIncidents, incidentsLoading, incidentsRefreshing]
   );
 
   useEffect(() => {
@@ -156,11 +155,78 @@ function Seguridad() {
   }, [loadHistory, loadIncidents]);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      loadIncidents({ silent: true });
-    }, 15000);
-    return () => clearInterval(interval);
-  }, [loadIncidents]);
+    const baseUrl = process.env.REACT_APP_API_URL || "http://127.0.0.1:8000/api/";
+    const normalizedBase = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
+    let manualClose = false;
+
+    const clearReconnect = () => {
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
+    };
+
+    const scheduleReconnect = () => {
+      clearReconnect();
+      const delay = reconnectDelayRef.current;
+      reconnectTimerRef.current = setTimeout(() => {
+        reconnectTimerRef.current = null;
+        reconnectDelayRef.current = Math.min(delay * 1.5, 60000);
+        startStream();
+      }, delay);
+    };
+
+    const startStream = () => {
+      const token = localStorage.getItem("access");
+      if (!token) {
+        return;
+      }
+
+      const streamUrl = new URL(
+        `${normalizedBase}seguridad/incidentes/stream/`
+      );
+      streamUrl.searchParams.set("token", token);
+
+      clearReconnect();
+      reconnectDelayRef.current = 4000;
+
+      const eventSource = new EventSource(streamUrl.toString());
+      eventSourceRef.current = eventSource;
+
+      eventSource.addEventListener("incidents", (event) => {
+        reconnectDelayRef.current = 4000;
+        try {
+          const payload = JSON.parse(event.data || "{}");
+          applyIncidents(payload.incidents || payload.incidentes || []);
+        } catch (parseError) {
+          console.error("No se pudo procesar el stream de incidentes", parseError);
+        }
+      });
+
+      eventSource.addEventListener("keepalive", () => {
+        reconnectDelayRef.current = 4000;
+      });
+
+      eventSource.onerror = () => {
+        eventSource.close();
+        eventSourceRef.current = null;
+        if (!manualClose) {
+          scheduleReconnect();
+        }
+      };
+    };
+
+    startStream();
+
+    return () => {
+      manualClose = true;
+      clearReconnect();
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+    };
+  }, [applyIncidents]);
 
   useEffect(() => {
     if (!summaryOpen) {
