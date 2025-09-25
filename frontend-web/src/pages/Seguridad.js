@@ -49,9 +49,6 @@ function Seguridad() {
   const [incidents, setIncidents] = useState([]);
   const [incidentsLoading, setIncidentsLoading] = useState(false);
   const [incidentsRefreshing, setIncidentsRefreshing] = useState(false);
-  const eventSourceRef = useRef(null);
-  const reconnectTimerRef = useRef(null);
-  const reconnectDelayRef = useRef(4000);
   const [identifyError, setIdentifyError] = useState("");
   const [identifySuccess, setIdentifySuccess] = useState(null);
   const [summaryOpen, setSummaryOpen] = useState(false);
@@ -153,80 +150,6 @@ function Seguridad() {
     loadHistory();
     loadIncidents({ initial: true });
   }, [loadHistory, loadIncidents]);
-
-  useEffect(() => {
-    const baseUrl = process.env.REACT_APP_API_URL || "http://127.0.0.1:8000/api/";
-    const normalizedBase = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
-    let manualClose = false;
-
-    const clearReconnect = () => {
-      if (reconnectTimerRef.current) {
-        clearTimeout(reconnectTimerRef.current);
-        reconnectTimerRef.current = null;
-      }
-    };
-
-    const scheduleReconnect = () => {
-      clearReconnect();
-      const delay = reconnectDelayRef.current;
-      reconnectTimerRef.current = setTimeout(() => {
-        reconnectTimerRef.current = null;
-        reconnectDelayRef.current = Math.min(delay * 1.5, 60000);
-        startStream();
-      }, delay);
-    };
-
-    const startStream = () => {
-      const token = localStorage.getItem("access");
-      if (!token) {
-        return;
-      }
-
-      const streamUrl = new URL(
-        `${normalizedBase}seguridad/incidentes/stream/`
-      );
-      streamUrl.searchParams.set("token", token);
-
-      clearReconnect();
-      reconnectDelayRef.current = 4000;
-
-      const eventSource = new EventSource(streamUrl.toString());
-      eventSourceRef.current = eventSource;
-
-      eventSource.addEventListener("incidents", (event) => {
-        reconnectDelayRef.current = 4000;
-        try {
-          const payload = JSON.parse(event.data || "{}");
-          applyIncidents(payload.incidents || payload.incidentes || []);
-        } catch (parseError) {
-          console.error("No se pudo procesar el stream de incidentes", parseError);
-        }
-      });
-
-      eventSource.addEventListener("keepalive", () => {
-        reconnectDelayRef.current = 4000;
-      });
-
-      eventSource.onerror = () => {
-        eventSource.close();
-        eventSourceRef.current = null;
-        if (!manualClose) {
-          scheduleReconnect();
-        }
-      };
-    };
-
-    startStream();
-
-    return () => {
-      manualClose = true;
-      clearReconnect();
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-        eventSourceRef.current = null;
-      }
-    };
-  }, [applyIncidents]);
 
   useEffect(() => {
     if (!summaryOpen) {
