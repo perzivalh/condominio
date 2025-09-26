@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 
 import '../core/app_constants.dart';
 import '../models/resident_profile.dart';
+import 'push_notification_service.dart';
 
 class AuthService {
   AuthService({http.Client? client, FlutterSecureStorage? storage})
@@ -24,6 +25,8 @@ class AuthService {
 
     await _storage.write(key: accessTokenKey, value: tokens.access);
     await _storage.write(key: refreshTokenKey, value: tokens.refresh);
+
+    await PushNotificationService.syncTokenWithBackend();
 
     return ResidentSession(tokens: tokens, profile: profile);
   }
