@@ -13,6 +13,7 @@ from .views import (
     reset_password,
     perfil,
     cambiar_password,
+    registrar_fcm_token,
 )
 from .security.views import (
     RegistroAccesoVehicularViewSet,
@@ -94,4 +95,8 @@ urlpatterns = [
     path('finanzas/config/multas/<uuid:pk>/', multa_aplicada_detalle),
     path('finanzas/config/multas/catalogo/', catalogo_multas),
     path('finanzas/config/multas/catalogo/<uuid:pk>/', catalogo_multa_detalle),
+]
+
+urlpatterns += [
+    path('fcm/registrar/', registrar_fcm_token),
 ]

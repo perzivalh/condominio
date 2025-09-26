@@ -14,6 +14,7 @@ from .models import (
     RegistroAccesoVehicular,
     CategoriaIncidenteSeguridad,
     ReporteIncidenteSeguridad,
+    FCMDevice,
 )
 
 # --- Rol ---
@@ -417,3 +418,11 @@ class ReporteIncidenteSeguridadSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("No se pudo asociar el reporte a un residente")
         validated_data["residente"] = residente
         return ReporteIncidenteSeguridad.objects.create(**validated_data)
+
+
+# --- FCMDevice ---
+class FCMDeviceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FCMDevice
+        fields = ["id", "usuario", "token", "creado_en", "actualizado_en"]
+        read_only_fields = ["id", "creado_en", "actualizado_en"]

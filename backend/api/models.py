@@ -480,3 +480,15 @@ class FacturaDetalle(models.Model):
 
     def __str__(self):
         return f"{self.factura.periodo} - {self.descripcion}"
+
+
+class FCMDevice(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    usuario = models.ForeignKey(Usuario, on_delete=models.CASCADE, related_name="fcm_devices")
+    token = models.CharField(max_length=255, unique=True)
+    creado_en = models.DateTimeField(auto_now_add=True)
+    actualizado_en = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "fcm_device"
+        unique_together = ("usuario", "token")

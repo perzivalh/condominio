@@ -33,9 +33,12 @@ dependencies:
   http: ^1.2.2
   flutter_secure_storage: ^9.2.2
   url_launcher: ^6.3.0
-  share_plus: ^10.0.2
+  share_plus: ^10.1.4
   path_provider: ^2.1.4
   open_filex: ^4.5.0
+  firebase_core: ^2.32.0
+  firebase_messaging: ^14.7.10
+  flutter_local_notifications: ^17.1.2
 
 
 dev_dependencies:

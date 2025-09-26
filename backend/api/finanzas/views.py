@@ -14,6 +14,8 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
+from ..fcm_utils import send_fcm_notification
+from ..models import FCMDevice
 from ..models import (
     ExpensaConfig,
     Factura,
@@ -153,11 +155,35 @@ def _crear_notificacion_residente(
     enviado_por=None,
     factura=None,
     pago=None,
+    push_data=None,
 ):
+    vivienda_obj = vivienda
+    if vivienda_obj is None:
+        if factura and getattr(factura, "vivienda", None):
+            vivienda_obj = factura.vivienda
+        elif pago and getattr(pago, "factura", None):
+            factura_rel = getattr(pago, "factura")
+            vivienda_obj = getattr(factura_rel, "vivienda", None)
+        elif residente is not None:
+            relacion = (
+                ResidenteVivienda.objects.select_related("vivienda")
+                .filter(residente=residente, fecha_hasta__isnull=True)
+                .order_by("-fecha_desde")
+                .first()
+            )
+            if relacion:
+                vivienda_obj = relacion.vivienda
+
     if residente is None:
-        residente = _obtener_residente_principal(vivienda)
+        if vivienda_obj is None:
+            print("[FCM-FINANZAS] No se pudo determinar un residente objetivo para la notificación.")
+            return None
+        residente = _obtener_residente_principal(vivienda_obj)
+
     if residente is None:
+        print(f"[FCM-FINANZAS] No se encontró residente principal para vivienda {vivienda_obj}")
         return None
+
     if isinstance(enviado_por, Usuario):
         usuario_envia = enviado_por
     elif enviado_por is None:
@@ -169,7 +195,8 @@ def _crear_notificacion_residente(
             usuario_envia = Usuario.objects.filter(user=enviado_por).first()
         else:
             usuario_envia = Usuario.objects.filter(pk=enviado_por).first()
-    return NotificacionDirecta.objects.create(
+
+    notificacion = NotificacionDirecta.objects.create(
         residente=residente,
         titulo=titulo,
         mensaje=mensaje,
@@ -177,6 +204,29 @@ def _crear_notificacion_residente(
         factura=factura,
         pago=pago,
     )
+
+    payload = {"notificacion_id": str(notificacion.id)}
+    if push_data:
+        for key, value in push_data.items():
+            if value is None:
+                continue
+            payload[str(key)] = str(value)
+    payload.setdefault("tipo", "notificacion_directa")
+
+    if residente and hasattr(residente, 'usuario') and residente.usuario:
+        devices = FCMDevice.objects.filter(usuario=residente.usuario)
+        if not devices:
+            print(f"[FCM-FINANZAS] Residente {residente} no tiene dispositivos FCM registrados.")
+        for device in devices:
+            try:
+                print(f"[FCM-FINANZAS] Intentando enviar push a token: {device.token} | title: {titulo} | data: {payload}")
+                resp = send_fcm_notification(device.token, titulo, mensaje, data=payload)
+                print(f"[FCM-FINANZAS] Push enviado correctamente a {device.token}: {resp}")
+            except Exception as e:
+                print(f"[FCM-FINANZAS] Error enviando push a {device.token}: {e}")
+    else:
+        print(f"[FCM-FINANZAS] Residente {residente} no tiene usuario asociado o usuario es None.")
+    return notificacion
 
 
 def _pdf_escape(text):
@@ -969,6 +1019,7 @@ def confirmar_pago_factura(request, pk):
         enviado_por=usuario_registra,
         factura=factura,
         pago=pago,
+        push_data={"tipo": "pago_revision", "factura_id": factura.id, "pago_id": pago.id},
     )
 
     data = {
@@ -1051,6 +1102,7 @@ def resolver_pago_revision(request, factura_pk, pago_pk):
         enviado_por=usuario_actor,
         factura=factura,
         pago=pago,
+        push_data={"tipo": "pago_actualizado", "factura_id": factura.id, "pago_id": pago.id, "accion": accion, "estado": pago.estado},
     )
 
     factura_refrescada = (
@@ -1202,7 +1254,38 @@ def notificaciones_directas_admin(request):
     serializer.is_valid(raise_exception=True)
 
     usuario_actor = Usuario.objects.filter(user=request.user).first()
-    notificacion = serializer.save(enviado_por=usuario_actor)
+    data_validada = serializer.validated_data
+
+    residente = data_validada.get("residente")
+    factura_rel = data_validada.get("factura")
+    pago_rel = data_validada.get("pago")
+    vivienda_rel = None
+    if factura_rel and getattr(factura_rel, "vivienda", None):
+        vivienda_rel = factura_rel.vivienda
+    elif pago_rel and getattr(pago_rel, "factura", None):
+        vivienda_rel = getattr(pago_rel, "factura").vivienda
+
+    notificacion = _crear_notificacion_residente(
+        vivienda_rel,
+        data_validada.get("titulo"),
+        data_validada.get("mensaje"),
+        residente=residente,
+        enviado_por=usuario_actor,
+        factura=factura_rel,
+        pago=pago_rel,
+        push_data={
+            "tipo": "notificacion_directa",
+            "factura_id": getattr(factura_rel, "id", None),
+            "pago_id": getattr(pago_rel, "id", None),
+        },
+    )
+
+    if not notificacion:
+        return Response(
+            {"detail": "No fue posible crear la notificación para el residente indicado."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
     return Response(
         NotificacionDirectaSerializer(notificacion).data,
         status=status.HTTP_201_CREATED,

@@ -1,4 +1,6 @@
-﻿import 'package:flutter/material.dart';
+﻿import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/material.dart';
 
 import 'core/app_colors.dart';
 import 'core/app_routes.dart';
@@ -7,9 +9,11 @@ import 'screens/auth/forgot_password_page.dart';
 import 'screens/auth/reset_password_page.dart';
 import 'screens/dashboard_page.dart';
 import 'screens/login_page.dart';
+import 'services/push_notification_service.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await PushNotificationService.initialize();
   runApp(const CondoApp());
 }
 

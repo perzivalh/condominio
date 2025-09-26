@@ -94,3 +94,7 @@ $RECYCLE.BIN/
 .vscode/
 .idea/
 *.code-workspace
+
+# === Firebase ===
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist

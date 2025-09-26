@@ -23,12 +23,15 @@ from .models import (
     Aviso,
     TokenRecuperacion,
     Condominio,
+    FCMDevice,
 )
 from .serializers import (
     RolSerializer, UsuarioSerializer, ViviendaSerializer,
-    ResidenteSerializer, VehiculoSerializer, AvisoSerializer, CondominioSerializer
+    ResidenteSerializer, VehiculoSerializer, AvisoSerializer, CondominioSerializer,
+    FCMDeviceSerializer,
 )
 from .permissions import IsAdmin
+from .fcm_utils import send_fcm_notification
 
 # --- ROLES ---
 class RolViewSet(viewsets.ModelViewSet):
@@ -128,20 +131,33 @@ class AvisoViewSet(viewsets.ModelViewSet):
         usuario = self._current_usuario()
         if not usuario:
             raise ValueError("No existe perfil de Usuario vinculado al auth_user actual")
-
         serializer.save(
             autor_usuario=usuario,
             estado=Aviso.ESTADO_BORRADOR,
             fecha_publicacion=None,
         )
+        # El aviso se mantiene como borrador hasta que un administrador lo publique.
 
     @action(detail=True, methods=["post"], permission_classes=[IsAdmin])
     def publicar(self, request, pk=None):
         aviso = self.get_object()
+        if aviso.estado == Aviso.ESTADO_PUBLICADO:
+            return Response({"detail": "El aviso ya está publicado."}, status=status.HTTP_400_BAD_REQUEST)
+
         aviso.estado = Aviso.ESTADO_PUBLICADO
         aviso.fecha_publicacion = timezone.now()
         aviso.save(update_fields=["estado", "fecha_publicacion"])
+
         serializer = self.get_serializer(aviso)
+
+        for residente in self._residentes_activos_con_usuario():
+            enviar_push_a_usuario(
+                residente.usuario,
+                f"Aviso publicado: {aviso.titulo}",
+                aviso.contenido,
+                data={"tipo": "aviso_publicado", "aviso_id": str(aviso.id)}
+            )
+
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def _current_usuario(self):
@@ -157,6 +173,12 @@ class AvisoViewSet(viewsets.ModelViewSet):
             rol__nombre="ADM",
             estado=1,
         ).exists()
+
+    def _residentes_activos_con_usuario(self):
+        return (
+            Residente.objects.filter(estado=1, usuario__isnull=False)
+            .select_related("usuario")
+        )
 
 # --- PERFIL ---
 @api_view(["GET"])
@@ -371,3 +393,51 @@ def cambiar_password(request):
     TokenRecuperacion.objects.filter(usuario__user=user, usado=False).update(usado=True)
 
     return Response({"mensaje": "Contraseña actualizada con éxito"}, status=status.HTTP_200_OK)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def registrar_fcm_token(request):
+    usuario, _ = Usuario.objects.get_or_create(user=request.user, defaults={'estado': 1})
+    token = request.data.get("token")
+    if not usuario:
+        return Response({"detail": "No se encontró el perfil de usuario para el token enviado."}, status=status.HTTP_400_BAD_REQUEST)
+    if not token:
+        return Response({"detail": "Token FCM faltante."}, status=status.HTTP_400_BAD_REQUEST)
+
+    token_normalizado = str(token).strip()
+    if not token_normalizado:
+        return Response({"detail": "Token FCM inválido."}, status=status.HTTP_400_BAD_REQUEST)
+
+    device = FCMDevice.objects.filter(token=token_normalizado).first()
+    if device:
+        if device.usuario_id != usuario.id:
+            device.usuario = usuario
+            device.save(update_fields=["usuario", "actualizado_en"])
+    else:
+        device = FCMDevice.objects.create(usuario=usuario, token=token_normalizado)
+
+    dispositivos_duplicados = FCMDevice.objects.filter(usuario=usuario, token=token_normalizado).exclude(pk=device.pk)
+    if dispositivos_duplicados.exists():
+        dispositivos_duplicados.delete()
+
+    serializer = FCMDeviceSerializer(device)
+    return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+def enviar_push_a_usuario(usuario, title, body, data=None):
+    import logging
+    logger = logging.getLogger("fcm")
+    devices = FCMDevice.objects.filter(usuario=usuario)
+    if not devices:
+        print(f"[FCM] Usuario {usuario} no tiene dispositivos FCM registrados.")
+    for device in devices:
+        try:
+            print(f"[FCM] Intentando enviar push a token: {device.token} | title: {title}")
+            logger.info(f"Intentando enviar push a token: {device.token} | title: {title}")
+            response = send_fcm_notification(device.token, title, body, data)
+            print(f"[FCM] Push enviado correctamente a {device.token}: {response}")
+            logger.info(f"Push enviado correctamente a {device.token}: {response}")
+        except Exception as e:
+            print(f"[FCM] Error enviando push a {device.token}: {e}")
+            logger.error(f"Error enviando push a {device.token}: {e}")
