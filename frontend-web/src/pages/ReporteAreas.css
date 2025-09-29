@@ -1,0 +1,197 @@
+/* Wrapper general */
+.reporte-areas-wrapper {
+  padding: 20px;
+  background-color: #f5f5f5; /* gris muy suave */
+  min-height: 100vh;
+  font-family: "Inter", sans-serif;
+}
+
+/* Cabecera y filtros */
+.reporte-areas-header h2.page-title {
+  font-size: 1.6rem;
+  font-weight: 700;
+  margin-bottom: 10px;
+  color: #333;
+}
+
+.filters-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.filters-row input,
+.filters-row select {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  font-size: 0.9rem;
+  background-color: #fafafa;
+}
+
+.filters-row .btn {
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s ease;
+}
+
+.btn.primary {
+  background-color: #a5d6a7; /* verde suave */
+  color: #2e7d32;
+}
+
+.btn.primary:hover {
+  background-color: #81c784;
+}
+
+.btn.secondary {
+  background-color: #e0e0e0; /* gris neutro */
+  color: #424242;
+}
+
+.btn.secondary:hover {
+  background-color: #d5d5d5;
+}
+
+/* Métricas */
+.metrics-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.metric-card {
+  flex: 1;
+  min-width: 120px;
+  padding: 15px;
+  border-radius: 8px;
+  color: white;
+  font-weight: 600;
+  text-align: center;
+}
+
+.metric-card.total {
+  background-color: #757575; /* gris medio */
+}
+
+.metric-card.aprobadas {
+  background-color: #a5d6a7; /* verde suave */
+  color: #2e7d32;
+}
+
+.metric-card.pendientes {
+  background-color: #bdbdbd; /* gris neutro */
+  color: #424242;
+}
+
+.metric-card.rechazadas {
+  background-color: #ef9a9a; /* rojo tenue */
+  color: #b71c1c;
+}
+
+/* Tabla */
+.table-card {
+  overflow-x: auto;
+  margin-bottom: 20px;
+  background-color: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.gestion-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.gestion-table th,
+.gestion-table td {
+  padding: 10px 12px;
+  text-align: left;
+  font-size: 0.9rem;
+  border-bottom: 1px solid #eee;
+}
+
+.gestion-table th {
+  background-color: #f9f9f9;
+  color: #555;
+  font-weight: 600;
+}
+
+/* Estado badges */
+.estado-badge {
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  text-transform: capitalize;
+  display: inline-block;
+  font-weight: 500;
+}
+
+.estado-aprobada {
+  background-color: #a5d6a7; /* verde suave */
+  color: #2e7d32;
+}
+
+.estado-pendiente {
+  background-color: #bdbdbd; /* gris neutro */
+  color: #424242;
+}
+
+.estado-rechazada {
+  background-color: #ef9a9a; /* rojo tenue */
+  color: #b71c1c;
+}
+
+/* Gráficos */
+.charts-row {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.chart-card {
+  flex: 1;
+  min-width: 280px;
+  background-color: #fff;
+  border-radius: 12px;
+  padding: 15px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  position: relative;
+}
+
+.chart-card h4 {
+  margin-bottom: 10px;
+  color: #333;
+}
+
+/* Botón de descarga de gráficos */
+.chart-btn {
+  margin-top: 10px;
+  width: 100%;
+}
+
+/* Loading y error */
+.loading,
+.error {
+  padding: 10px;
+  margin: 10px 0;
+  border-radius: 8px;
+  text-align: center;
+  font-weight: 600;
+}
+
+.loading {
+  background-color: #e0f2f1;
+  color: #00695c;
+}
+
+.error {
+  background-color: #ffebee;
+  color: #c62828;
+}

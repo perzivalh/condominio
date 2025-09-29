@@ -12,6 +12,9 @@ import 'finance/finanzas_page.dart';
 import 'notifications/resident_notifications_page.dart';
 import 'notices/resident_notices_page.dart';
 import 'security/resident_security_page.dart';
+import 'package:condo_app/screens/areas/ReservationPage.dart';
+import 'package:condo_app/screens/visitas/registro_visitante.dart';
+import 'package:condo_app/screens/Mantenimiento/MantenimientoPage.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key, required this.session});
@@ -47,6 +50,19 @@ class _DashboardPageState extends State<DashboardPage> {
       );
       return;
     }
+    if (module == 'Reservas') {
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => ReservationPage()));
+      return;
+    }
+
+    if (module == 'Visitas') {
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => RegistroVisitantePage()));
+      return;
+    }
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -68,8 +84,9 @@ class _DashboardPageState extends State<DashboardPage> {
           await _notificationService.fetchNotifications();
       if (!mounted) return;
       setState(() {
-        _hasUnreadNotifications =
-            notifications.any((notification) => !notification.leida);
+        _hasUnreadNotifications = notifications.any(
+          (notification) => !notification.leida,
+        );
       });
     } catch (_) {
       if (!mounted) return;
@@ -158,7 +175,8 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   Future<void> _handleLogout() async {
-    final confirmed = await showDialog<bool>(
+    final confirmed =
+        await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
             title: const Text('Cerrar sesión'),
@@ -188,10 +206,9 @@ class _DashboardPageState extends State<DashboardPage> {
     try {
       await _authService.clearSession();
       if (!mounted) return;
-      Navigator.of(context).pushNamedAndRemoveUntil(
-        AppRoutes.login,
-        (route) => false,
-      );
+      Navigator.of(
+        context,
+      ).pushNamedAndRemoveUntil(AppRoutes.login, (route) => false);
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -211,10 +228,9 @@ class _DashboardPageState extends State<DashboardPage> {
     messenger.showSnackBar(SnackBar(content: Text(message)));
     await _authService.clearSession();
     if (!mounted) return;
-    Navigator.of(context).pushNamedAndRemoveUntil(
-      AppRoutes.login,
-      (route) => false,
-    );
+    Navigator.of(
+      context,
+    ).pushNamedAndRemoveUntil(AppRoutes.login, (route) => false);
   }
 }
 
@@ -348,9 +364,14 @@ class _ProfileContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fullName = profile.fullName.isEmpty ? 'Sin nombre registrado' : profile.fullName;
-    final username = profile.username.isEmpty ? 'Sin usuario asignado' : profile.username;
-    final vivienda = profile.codigoUnidad == null || profile.codigoUnidad!.isEmpty
+    final fullName = profile.fullName.isEmpty
+        ? 'Sin nombre registrado'
+        : profile.fullName;
+    final username = profile.username.isEmpty
+        ? 'Sin usuario asignado'
+        : profile.username;
+    final vivienda =
+        profile.codigoUnidad == null || profile.codigoUnidad!.isEmpty
         ? 'Sin vivienda asignada'
         : profile.codigoUnidad!;
 
@@ -422,7 +443,9 @@ class _ProfileContent extends StatelessWidget {
                           height: 22,
                           child: CircularProgressIndicator(
                             strokeWidth: 2.4,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white,
+                            ),
                           ),
                         )
                       : Row(
@@ -432,7 +455,10 @@ class _ProfileContent extends StatelessWidget {
                             SizedBox(width: 10),
                             Text(
                               'Cerrar sesión',
-                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ],
                         ),
@@ -455,9 +481,7 @@ class _ProfileContent extends StatelessWidget {
         return ChangePasswordSheet(
           onSuccess: (message) {
             Navigator.of(sheetContext).pop();
-            messenger.showSnackBar(
-              SnackBar(content: Text(message)),
-            );
+            messenger.showSnackBar(SnackBar(content: Text(message)));
           },
           onSessionExpired: (message) {
             Navigator.of(sheetContext).pop();
@@ -675,7 +699,8 @@ class _ChangePasswordSheetState extends State<ChangePasswordSheet> {
       });
     } catch (_) {
       setState(() {
-        _errorMessage = 'No se pudo actualizar la contraseña. Intenta nuevamente.';
+        _errorMessage =
+            'No se pudo actualizar la contraseña. Intenta nuevamente.';
       });
     } finally {
       if (mounted) {
@@ -710,9 +735,9 @@ class _ChangePasswordSheetState extends State<ChangePasswordSheet> {
                   Text(
                     'Cambiar contraseña',
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.primaryText,
-                        ),
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primaryText,
+                    ),
                   ),
                   const Spacer(),
                   IconButton(
@@ -1012,6 +1037,35 @@ class _HeaderRow extends StatelessWidget {
             ),
           ],
         ),
+        const SizedBox(width: 12), // Espacio entre íconos
+        NeumorphicSurface(
+          borderRadius: BorderRadius.circular(22),
+          padding: EdgeInsets.zero,
+          child: Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(22),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(22),
+              onTap: () {
+                // Aquí defines la acción del botón
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const MantenimientoPage()),
+                );
+                // O navegar a otra página
+                // Navigator.of(context).push(MaterialPageRoute(builder: (_) => MaintenancePage()));
+              },
+              child: const SizedBox(
+                width: 48,
+                height: 48,
+                child: Icon(
+                  Icons.build_outlined, // Icono de mantenimiento
+                  color: AppColors.primaryText,
+                  size: 26,
+                ),
+              ),
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -1025,7 +1079,7 @@ class _ModuleGrid extends StatelessWidget {
   static final List<_ModuleData> _modules = [
     _ModuleData(label: 'Seguridad', icon: Icons.local_police_outlined),
     _ModuleData(label: 'Finanzas', icon: Icons.attach_money_rounded),
-    _ModuleData(label: 'Áreas comunes', icon: Icons.calendar_today_outlined),
+    _ModuleData(label: 'Reservas', icon: Icons.calendar_today_outlined),
     _ModuleData(label: 'Visitas', icon: Icons.meeting_room_outlined),
   ];
 
@@ -1038,17 +1092,41 @@ class _ModuleGrid extends StatelessWidget {
           children: [
             Row(
               children: [
-                Expanded(child: _ModuleCard(data: _modules[0], height: itemHeight, onTap: onModuleTap)),
+                Expanded(
+                  child: _ModuleCard(
+                    data: _modules[0],
+                    height: itemHeight,
+                    onTap: onModuleTap,
+                  ),
+                ),
                 const SizedBox(width: 18),
-                Expanded(child: _ModuleCard(data: _modules[1], height: itemHeight, onTap: onModuleTap)),
+                Expanded(
+                  child: _ModuleCard(
+                    data: _modules[1],
+                    height: itemHeight,
+                    onTap: onModuleTap,
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 18),
             Row(
               children: [
-                Expanded(child: _ModuleCard(data: _modules[2], height: itemHeight, onTap: onModuleTap)),
+                Expanded(
+                  child: _ModuleCard(
+                    data: _modules[2],
+                    height: itemHeight,
+                    onTap: onModuleTap,
+                  ),
+                ),
                 const SizedBox(width: 18),
-                Expanded(child: _ModuleCard(data: _modules[3], height: itemHeight, onTap: onModuleTap)),
+                Expanded(
+                  child: _ModuleCard(
+                    data: _modules[3],
+                    height: itemHeight,
+                    onTap: onModuleTap,
+                  ),
+                ),
               ],
             ),
           ],

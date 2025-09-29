@@ -32,8 +32,12 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     "rest_framework",
     "rest_framework_simplejwt",
+    'django_filters',
     "corsheaders",
     'api',
+    'areas',
+    'visitantes',
+    'mantenimiento',
 ]
 
 MIDDLEWARE = [
@@ -69,13 +73,14 @@ WSGI_APPLICATION = 'core.wsgi.application'
 # Database
 # En local usará postgres con tus datos, en producción Railway usa DATABASE_URL
 DATABASES = {
-    'default': dj_database_url.config(
-        default=os.environ.get(
-            "DATABASE_URL",
-            "postgres://condo:condo2025@127.0.0.1:5432/condominioDB"
-        ),
-        conn_max_age=600,
-    )
+    "default":dj_database_url.parse(os.environ.get('DATABASE_URL', ''), conn_max_age=600) if os.environ.get('DATABASE_URL') else {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": "condominio",
+        "USER": "postgres",
+        "PASSWORD": "calamaro123",
+        "HOST": "127.0.0.1",
+        "PORT": "5432",
+    }
 }
 
 # Password validation
@@ -88,7 +93,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 # Internationalization
 LANGUAGE_CODE = 'en-us'
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'America/La_Paz'
 USE_I18N = True
 USE_TZ = True
 
@@ -115,6 +120,9 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ],
+    "DEFAULT_FILTER_BACKENDS": [
+        "django_filters.rest_framework.DjangoFilterBackend"
     ],
 }
 
@@ -246,3 +254,7 @@ PLATE_RECOGNIZER_ENDPOINT = os.environ.get(
     "PLATE_RECOGNIZER_ENDPOINT",
     "https://api.platerecognizer.com/v1/plate-reader/",
 ).strip()
+
+
+
+

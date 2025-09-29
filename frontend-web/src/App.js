@@ -14,9 +14,14 @@ import ResetPassword from "./pages/ResetPassword";
 import UsuariosMenu from "./pages/UsuariosMenu";
 import UsuariosList from "./pages/UsuariosList";
 import Areas from "./pages/Areas";
+import AreasComunes from "./pages/AreasComunes";
+import Reservas from "./pages/Reservas";
+import Reportes from "./pages/ReporteAreas";
+import Mantenimiento from "./pages/Mantenimiento";
+import VisitasAccesos from "./pages/VisitasAccesos";
 import Finanzas from "./pages/Finanzas";
 import Seguridad from "./pages/Seguridad";
-import VisitasAccesos from "./pages/VisitasAccesos";
+import HistorialVisitantes from "./pages/HistorialVisitantes";
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -98,10 +103,18 @@ function App() {
           <Route path="residentes" element={<Residentes />} />
           <Route path="vehiculos" element={<Vehiculos />} />
           <Route path="avisos" element={<Avisos />} />
+          
           <Route path="areas" element={<Areas />} />
+          <Route path="areas/areascomunes" element={<AreasComunes />} />
+          <Route path="areas/reservas" element={<Reservas />} />
+          <Route path="areas/reportes" element={<Reportes />} />
+
+          <Route path="mantenimiento" element={<Mantenimiento />} />
+
           <Route path="finanzas" element={<Finanzas />} />
           <Route path="seguridad" element={<Seguridad />} />
           <Route path="visitas-accesos" element={<VisitasAccesos />} />
+          <Route path="visitas-accesos/historial-visitantes" element={<HistorialVisitantes />} />
         </Route>
 
         <Route path="/forgot-password" element={<ForgotPassword />} />

@@ -549,3 +549,116 @@
   font-size: 0.85rem;
   color: #64748b;
 }
+
+
+
+
+/* Expandible por fila */
+.row-main { cursor: pointer; transition: background 0.2s; }
+.row-main:hover { background-color: #f0f0f0; }
+
+.row-details { background-color: #fafafa; }
+
+.details {
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  margin: 6px 0;
+}
+
+/* Búsqueda */
+.search-input {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  min-width: 200px;
+}
+
+/* Paginación */
+.pagination {
+  margin-top: 12px;
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+.pagination button {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  cursor: pointer;
+  background-color: white;
+}
+
+.pagination button:hover:not(:disabled) { background-color: #f0f0f0; }
+.pagination button:disabled { cursor: not-allowed; opacity: 0.5; }
+
+/* Flecha de expansión */
+.expand-icon {
+  display: inline-block;
+  transition: transform 0.2s ease-in-out;
+  font-size: 0.9rem; /* Ajusta tamaño si quieres */
+  color: #1173d4;   /* Color primario */
+}
+
+/* Rotación cuando la fila está expandida */
+.expand-icon.expanded {
+  transform: rotate(90deg);
+}
+
+/* Opcional: cursor pointer para toda la fila */
+.row-main {
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.row-main:hover {
+  background-color: rgba(17, 115, 212, 0.1); /* fondo al pasar el mouse */
+}
+
+/* Estilos para los detalles */
+.row-details .details {
+  padding: 10px;
+  background-color: #f6f7f8;
+  border-radius: 0 0 0.5rem 0.5rem;
+}
+
+.detail-image {
+  max-width: 120px;
+  max-height: 80px;
+  margin-top: 5px;
+  border-radius: 0.25rem;
+  object-fit: cover;
+}
+
+.details-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 20px;
+  padding: 15px;
+  background-color: #f6f7f8;
+  border-radius: 0 0 0.5rem 0.5rem;
+}
+
+.details-section {
+  background-color: #fff;
+  padding: 10px;
+  border-radius: 0.5rem;
+  border: 1px solid #ddd;
+}
+
+.details-title {
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #1173d4;
+}
+
+.detail-image {
+  max-width: 120px;
+  max-height: 80px;
+  margin-top: 5px;
+  border-radius: 0.25rem;
+  object-fit: cover;
+}
+
+
