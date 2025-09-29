@@ -29,6 +29,7 @@ instance/
 .envrc
 .venv/
 venv/
+env/
 Pipfile.lock
 poetry.lock
 requirements.local.txt

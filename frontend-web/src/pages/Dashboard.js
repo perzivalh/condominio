@@ -9,6 +9,7 @@ import PaymentsOutlinedIcon from "@mui/icons-material/PaymentsOutlined";
 import PersonOutlineOutlinedIcon from "@mui/icons-material/PersonOutlineOutlined";
 import SecurityOutlinedIcon from "@mui/icons-material/SecurityOutlined";
 import HolidayVillageOutlinedIcon from "@mui/icons-material/HolidayVillageOutlined";
+import BuildOutlinedIcon from "@mui/icons-material/BuildOutlined";
 
 const MODULES = [
   { id: "usuarios", label: "Usuarios", roles: ["ADM"], Icon: PersonOutlineOutlinedIcon },
@@ -18,6 +19,7 @@ const MODULES = [
   { id: "avisos", label: "Avisos", roles: ["ADM"], Icon: MailOutlineOutlinedIcon },
   { id: "areas", label: "Areas", roles: ["ADM"], Icon: HolidayVillageOutlinedIcon },
   { id: "visitas-accesos", label: "Visitas Accesos", roles: ["ADM", "GUA"], Icon: GroupsOutlinedIcon },
+  { id: "mantenimiento", label: "Mantenimiento", roles: ["ADM", "MAN"], Icon: BuildOutlinedIcon },
   { id: "finanzas", label: "Finanzas", roles: ["ADM"], Icon: PaymentsOutlinedIcon },
   { id: "seguridad", label: "Seguridad", roles: ["ADM", "GUA"], Icon: SecurityOutlinedIcon },
 ];
