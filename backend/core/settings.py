@@ -258,3 +258,6 @@ PLATE_RECOGNIZER_ENDPOINT = os.environ.get(
 
 
 
+
+FINANZAS_QR_FALLBACK_URL = os.environ.get("FINANZAS_QR_FALLBACK_URL", "").strip()
+

@@ -4,11 +4,12 @@ from decimal import Decimal, InvalidOperation
 import mimetypes
 
 from django.db import transaction
+from django.conf import settings
 from django.db.models import Exists, OuterRef, Prefetch, Q, Sum
 from django.db.models.functions import TruncMonth, Upper
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
-from django.http import FileResponse, Http404, HttpResponse
+from django.http import FileResponse, Http404, HttpResponse, HttpResponseRedirect
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -815,14 +816,19 @@ def codigo_qr_residente(request):
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def codigo_qr_publico(request):
+    fallback_url = getattr(settings, "FINANZAS_QR_FALLBACK_URL", "")
     actual = FinanzasCodigoQR.objects.order_by("-actualizado_en").first()
     if not actual or not actual.imagen:
-        raise Http404("No existe un código QR configurado.")
+        if fallback_url:
+            return HttpResponseRedirect(fallback_url)
+        raise Http404("No existe un codigo QR configurado.")
 
     try:
         archivo = actual.imagen.open("rb")
     except FileNotFoundError as exc:
-        raise Http404("El archivo del código QR no está disponible.") from exc
+        if fallback_url:
+            return HttpResponseRedirect(fallback_url)
+        raise Http404("El archivo del codigo QR no esta disponible.") from exc
 
     content_type, _ = mimetypes.guess_type(actual.imagen.name)
     response = FileResponse(
@@ -838,10 +844,6 @@ def codigo_qr_publico(request):
     response["Cross-Origin-Resource-Policy"] = "cross-origin"
     response["Access-Control-Allow-Origin"] = "*"
     return response
-
-
-@api_view(["GET"])
-@permission_classes([IsAuthenticated])
 def resumen_finanzas(request):
     try:
         vivienda = _obtener_vivienda_actual(request.user)

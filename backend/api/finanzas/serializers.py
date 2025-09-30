@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.urls import reverse
 from rest_framework import serializers
 
@@ -240,18 +241,18 @@ class FinanzasQRSerializer(serializers.ModelSerializer):
         return self._build_public_url(obj)
 
     def _build_public_url(self, obj):
-        if not obj.imagen:
-            return None
+        fallback = getattr(settings, "FINANZAS_QR_FALLBACK_URL", "")
+        if obj and obj.imagen:
+            request = self.context.get("request") if self.context else None
+            version = ""
+            if obj.actualizado_en:
+                version = f"?v={int(obj.actualizado_en.timestamp())}"
 
-        request = self.context.get("request") if self.context else None
-        version = ""
-        if obj.actualizado_en:
-            version = f"?v={int(obj.actualizado_en.timestamp())}"
-
-        path = reverse("finanzas-codigo-qr-publico")
-        if request:
-            return request.build_absolute_uri(f"{path}{version}")
-        return f"{path}{version}"
+            path = reverse("finanzas-codigo-qr-publico")
+            if request:
+                return request.build_absolute_uri(f"{path}{version}")
+            return f"{path}{version}"
+        return fallback or None
 
     def get_actualizado_por(self, obj):
         if obj.actualizado_por and hasattr(obj.actualizado_por, "user"):

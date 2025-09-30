@@ -5,9 +5,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:intl/intl.dart';
 import '../../widgets/neumorphic.dart';
+import '../../core/http_utils.dart';
 import 'MisReservasPage.dart';
-
-const String baseUrl = 'http://192.168.0.15:8000/api';
 
 class ReservationPage extends StatefulWidget {
   const ReservationPage({super.key});
@@ -27,6 +26,12 @@ class _ReservationPageState extends State<ReservationPage> {
   Map<int, String> _availabilityMap = {};
   Map<int, int> _reservaIdMap = {}; // areaId -> reservaId
 
+  String _resolveImageUrl(dynamic url) {
+    final raw = url == null ? '' : url.toString();
+    final resolved = rewriteBackendUrl(raw);
+    return resolved.isNotEmpty ? resolved : 'https://via.placeholder.com/64';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -35,7 +40,7 @@ class _ReservationPageState extends State<ReservationPage> {
 
   Future<void> _fetchAreas() async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/areas/'));
+      final response = await http.get(apiUri('areas/'));
       if (response.statusCode == 200) {
         final decodedData = jsonDecode(response.body);
         if (decodedData is Map && decodedData.containsKey('results')) {
@@ -73,7 +78,7 @@ class _ReservationPageState extends State<ReservationPage> {
 
     final formattedDate = DateFormat('yyyy-MM-dd').format(date);
     final response = await http.get(
-      Uri.parse('$baseUrl/reservas/?fecha=$formattedDate'),
+      apiUri('reservas/?fecha=$formattedDate'),
       headers: {
         "Content-Type": "application/json",
         "Authorization": "Bearer $token",
@@ -241,7 +246,7 @@ class _ReservationPageState extends State<ReservationPage> {
               };
 
               final response = await http.post(
-                Uri.parse('$baseUrl/reservas/'),
+                apiUri('reservas/'),
                 headers: {
                   "Content-Type": "application/json",
                   "Authorization": "Bearer $token",
@@ -315,10 +320,7 @@ class _ReservationPageState extends State<ReservationPage> {
                       },
                       itemBuilder: (context, index) {
                         return Image.network(
-                          images[index].replaceFirst(
-                            'http://localhost:8000',
-                            'http://192.168.0.15:8000',
-                          ),
+                          _resolveImageUrl(images[index]),
                           fit: BoxFit.cover,
                           errorBuilder: (c, e, s) => Container(
                             color: Colors.grey[200],
@@ -449,12 +451,7 @@ class _ReservationPageState extends State<ReservationPage> {
                       final area = _areas[index];
                       final estado =
                           _availabilityMap[area['id']] ?? 'Disponible';
-                      final imageUrl = area['imagen'] != null
-                          ? area['imagen'].replaceFirst(
-                              'http://localhost:8000',
-                              'http://192.168.0.15:8000',
-                            )
-                          : 'https://via.placeholder.com/64';
+                      final imageUrl = _resolveImageUrl(area['imagen']);
 
                       return Padding(
                         padding: const EdgeInsets.symmetric(vertical: 8),

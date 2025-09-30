@@ -3,8 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../../widgets/neumorphic.dart';
+import '../../core/http_utils.dart';
 
-const String baseUrl = 'http://192.168.0.15:8000/api/historial-visitas/';
+String get _baseUrl => apiUri('historial-visitas/').toString();
 
 class ListaVisitantesPage extends StatefulWidget {
   const ListaVisitantesPage({super.key});
@@ -72,7 +73,7 @@ class _ListaVisitantesPageState extends State<ListaVisitantesPage> {
       return;
     }
 
-    final url = _nextPageUrl ?? baseUrl;
+    final url = (_nextPageUrl?.isNotEmpty ?? false) ? _nextPageUrl! : _baseUrl;
 
     try {
       final res = await http.get(
@@ -91,7 +92,9 @@ class _ListaVisitantesPageState extends State<ListaVisitantesPage> {
 
         if (decodedData is Map && decodedData.containsKey('results')) {
           newVisitantes = decodedData['results'];
-          _nextPageUrl = decodedData['next'];
+          final nextUrl = decodedData['next'];
+          final rewritten = nextUrl == null ? '' : rewriteBackendUrl(nextUrl.toString());
+          _nextPageUrl = rewritten.isEmpty ? null : rewritten;
           _hasMore = _nextPageUrl != null;
         } else if (decodedData is List) {
           newVisitantes = decodedData;

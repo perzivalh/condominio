@@ -1,7 +1,7 @@
-﻿/// Base URL del backend. Usa `--dart-define=API_BASE_URL=...` para sobreescribirla.
+/// Base URL del backend. Usa `--dart-define=API_BASE_URL=...` para sobreescribirla.
 const String apiBaseUrl = String.fromEnvironment(
   'API_BASE_URL',
-  defaultValue: 'http://192.168.0.15:8000/api/',
+  defaultValue: 'https://condominio-production.up.railway.app/api/',
 );
 
 const String accessTokenKey = 'access';

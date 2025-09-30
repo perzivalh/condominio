@@ -3,8 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../../widgets/neumorphic.dart';
-
-const String baseUrl = 'http://192.168.0.15:8000/api';
+import '../../core/http_utils.dart';
 
 class MisReservasPage extends StatefulWidget {
   const MisReservasPage({super.key});
@@ -19,6 +18,24 @@ class _MisReservasPageState extends State<MisReservasPage> {
   bool _loading = true;
   String _error = '';
 
+  String _resolveImageUrl(dynamic value) {
+    if (value is Map && value['imagen'] != null) {
+      return _resolveImageUrl(value['imagen']);
+    }
+    if (value is String) {
+      final resolved = rewriteBackendUrl(value);
+      if (resolved.isNotEmpty) {
+        return resolved;
+      }
+    } else if (value != null) {
+      final resolved = rewriteBackendUrl(value.toString());
+      if (resolved.isNotEmpty) {
+        return resolved;
+      }
+    }
+    return 'https://via.placeholder.com/64';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -32,10 +49,10 @@ class _MisReservasPageState extends State<MisReservasPage> {
       _error = '';
     });
 
-    final token = await storage.read(key: "access");
+    final token = await storage.read(key: 'access');
     if (token == null) {
       setState(() {
-        _error = "No hay token de autenticación.";
+        _error = 'No hay token de autenticación.';
         _loading = false;
       });
       return;
@@ -43,10 +60,10 @@ class _MisReservasPageState extends State<MisReservasPage> {
 
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl/reservas/mis_reservas/'),
+        apiUri('reservas/mis_reservas/'),
         headers: {
-          "Content-Type": "application/json",
-          "Authorization": "Bearer $token",
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
         },
       );
 
@@ -65,12 +82,12 @@ class _MisReservasPageState extends State<MisReservasPage> {
         });
       } else {
         setState(() {
-          _error = "Error al cargar tus reservas: ${response.statusCode}";
+          _error = 'Error al cargar tus reservas: ${response.statusCode}';
         });
       }
     } catch (e) {
       setState(() {
-        _error = "Error al cargar tus reservas: $e";
+        _error = 'Error al cargar tus reservas: $e';
       });
     }
 
@@ -120,7 +137,7 @@ class _MisReservasPageState extends State<MisReservasPage> {
       backgroundColor: Colors.grey[300],
       appBar: AppBar(
         title: const Text(
-          "Mis Reservas",
+          'Mis Reservas',
           style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black),
         ),
         centerTitle: true,
@@ -129,84 +146,69 @@ class _MisReservasPageState extends State<MisReservasPage> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error.isNotEmpty
-          ? Center(child: Text(_error))
-          : _reservas.isEmpty
-          ? const Center(child: Text("No tienes reservas."))
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: _reservas.length,
-              itemBuilder: (context, index) {
-                final reserva = _reservas[index];
-                final estado = _formatEstado(reserva['estado']);
-                final facturaEstado = reserva['factura']?['estado'] ?? '';
+              ? Center(child: Text(_error))
+              : _reservas.isEmpty
+                  ? const Center(child: Text('No tienes reservas.'))
+                  : ListView.builder(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: _reservas.length,
+                      itemBuilder: (context, index) {
+                        final reserva = _reservas[index];
+                        final estado = _formatEstado(reserva['estado']);
+                        final facturaEstado = reserva['factura']?['estado'] ?? '';
+                        final imageUrl = _resolveImageUrl(
+                          reserva['area_comun']?['imagen'],
+                        );
 
-                // Construir la URL de la imagen correctamente
-                final areaImagen = reserva['area_comun']?['imagen'];
-                String imageUrl = 'https://via.placeholder.com/64';
-                if (areaImagen != null) {
-                  if (areaImagen is String) {
-                    imageUrl = areaImagen.replaceFirst(
-                      'http://localhost:8000',
-                      'http://192.168.0.15:8000',
-                    );
-                  } else if (areaImagen is Map &&
-                      areaImagen['imagen'] != null) {
-                    imageUrl = areaImagen['imagen'].toString().replaceFirst(
-                      'http://localhost:8000',
-                      'http://192.168.0.15:8000',
-                    );
-                  }
-                }
-
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: NeumorphicSurface(
-                    padding: const EdgeInsets.all(12),
-                    child: ListTile(
-                      leading: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.network(
-                          imageUrl,
-                          width: 64,
-                          height: 64,
-                          fit: BoxFit.cover,
-                          errorBuilder: (c, e, s) => Container(
-                            width: 64,
-                            height: 64,
-                            color: Colors.grey[200],
-                            child: const Icon(Icons.image),
-                          ),
-                        ),
-                      ),
-                      title: Text(reserva['area_comun']?['nombre'] ?? '-'),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            estado,
-                            style: TextStyle(
-                              color: _getEstadoColor(reserva['estado']),
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          if (facturaEstado.isNotEmpty)
-                            Text(
-                              "Factura: $facturaEstado",
-                              style: TextStyle(
-                                color: _getFacturaColor(facturaEstado),
-                                fontWeight: FontWeight.bold,
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: NeumorphicSurface(
+                            padding: const EdgeInsets.all(12),
+                            child: ListTile(
+                              leading: ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.network(
+                                  imageUrl,
+                                  width: 64,
+                                  height: 64,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (c, e, s) => Container(
+                                    width: 64,
+                                    height: 64,
+                                    color: Colors.grey[200],
+                                    child: const Icon(Icons.image),
+                                  ),
+                                ),
+                              ),
+                              title: Text(reserva['area_comun']?['nombre'] ?? '-'),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    estado,
+                                    style: TextStyle(
+                                      color: _getEstadoColor(reserva['estado']),
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  if (facturaEstado.isNotEmpty)
+                                    Text(
+                                      'Factura: $facturaEstado',
+                                      style: TextStyle(
+                                        color: _getFacturaColor(facturaEstado),
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  Text(
+                                    'Fecha: ${reserva['fecha']} ${reserva['hora_inicio']}-${reserva['hora_fin']}',
+                                  ),
+                                ],
                               ),
                             ),
-                          Text(
-                            "Fecha: ${reserva['fecha']} ${reserva['hora_inicio']}-${reserva['hora_fin']}",
                           ),
-                        ],
-                      ),
+                        );
+                      },
                     ),
-                  ),
-                );
-              },
-            ),
     );
   }
 }

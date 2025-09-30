@@ -3,9 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../../widgets/neumorphic.dart';
+import '../../core/http_utils.dart';
 import 'lista_visitantes_page.dart';
 
-const String baseUrl = 'http://192.168.0.15:8000/api/historial-visitas/';
+Uri get _registroUri => apiUri('historial-visitas/');
 
 class RegistroVisitantePage extends StatefulWidget {
   const RegistroVisitantePage({super.key});
@@ -60,7 +61,7 @@ class _RegistroVisitantePageState extends State<RegistroVisitantePage> {
 
     try {
       final res = await http.post(
-        Uri.parse(baseUrl),
+        _registroUri,
         headers: {
           "Authorization": "Bearer $token",
           "Content-Type": "application/json",
