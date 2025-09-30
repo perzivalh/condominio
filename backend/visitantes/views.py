@@ -7,7 +7,7 @@ from django_filters import rest_framework as filters
 
 from .models import Visitante, HistorialVisita
 from .serializers import VisitanteSerializer, HistorialVisitaSerializer
-from api.models import Usuario
+from api.models import Usuario, UsuarioRol
 
 
 class HistorialVisitaViewSet(viewsets.ModelViewSet):
@@ -27,13 +27,21 @@ class HistorialVisitaViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
+        if not user or not user.is_authenticated:
+            return HistorialVisita.objects.none()
+
         if user.is_staff or user.is_superuser:
             return HistorialVisita.objects.all().order_by('-fecha_registro')
+
         try:
-            usuario = Usuario.objects.get(user=user)
-            return HistorialVisita.objects.filter(residente=usuario).order_by('-fecha_registro')
+            usuario = Usuario.objects.select_related('user').get(user=user)
         except Usuario.DoesNotExist:
             return HistorialVisita.objects.none()
+
+        if UsuarioRol.objects.filter(usuario=usuario, rol__nombre__in=['ADM', 'GUA'], estado=1).exists():
+            return HistorialVisita.objects.all().order_by('-fecha_registro')
+
+        return HistorialVisita.objects.filter(residente=usuario).order_by('-fecha_registro')
 
     def perform_create(self, serializer):
         data = self.request.data
