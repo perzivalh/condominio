@@ -82,6 +82,9 @@ def _pagos_confirmados_queryset():
 
 
 def _obtener_vivienda_actual(usuario_auth):
+    if not usuario_auth or not getattr(usuario_auth, 'is_authenticated', False):
+        raise ValueError('Usuario no autenticado')
+
     try:
         usuario = Usuario.objects.select_related("residente").get(user=usuario_auth)
     except Usuario.DoesNotExist as exc:
@@ -844,6 +847,9 @@ def codigo_qr_publico(request):
     response["Cross-Origin-Resource-Policy"] = "cross-origin"
     response["Access-Control-Allow-Origin"] = "*"
     return response
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
 def resumen_finanzas(request):
     try:
         vivienda = _obtener_vivienda_actual(request.user)
